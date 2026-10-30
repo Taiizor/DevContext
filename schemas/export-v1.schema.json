@@ -1,0 +1,263 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devcontext.dev/schemas/v1/export.json",
+  "title": "DevContext Export Schema v1",
+  "description": "Standard versioned export interchange format for DevContext project memory.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "exported_at",
+    "generator",
+    "project",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0.0"]
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of when export was created."
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "example": "devcontext-core"
+        },
+        "version": {
+          "type": "string",
+          "example": "0.1.0"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": ["id", "name", "created_at"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Stable immutable project identifier."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable project name."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "vcs": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["git", "none"]
+            },
+            "root_identifier": {
+              "type": "string",
+              "description": "Optional anonymized repository identity (e.g. initial commit hash or remote slug)."
+            }
+          }
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Record"
+      }
+    }
+  },
+  "definitions": {
+    "Record": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_type",
+        "title",
+        "created_at",
+        "updated_at",
+        "tags",
+        "payload"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "record_type": {
+          "type": "string",
+          "enum": ["note", "decision", "milestone", "log_entry", "saved_command"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Reference"
+          },
+          "default": []
+        },
+        "payload": {
+          "type": "object",
+          "description": "Typed data payload specific to the record_type."
+        }
+      }
+    },
+    "Reference": {
+      "type": "object",
+      "required": ["id", "ref_type", "target"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "ref_type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "folder",
+            "symbol",
+            "git_commit",
+            "git_branch",
+            "url",
+            "command",
+            "record"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "description": "Workspace-relative path, commit hash, branch name, URL, or record ID."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional human-readable label or description."
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "NotePayload": {
+      "type": "object",
+      "required": ["content_markdown"],
+      "properties": {
+        "content_markdown": {
+          "type": "string"
+        },
+        "category": {
+          "type": ["string", "null"]
+        },
+        "is_pinned": {
+          "type": "boolean",
+          "default": false
+        },
+        "is_archived": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "DecisionPayload": {
+      "type": "object",
+      "required": ["status", "context", "decision", "consequences"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "accepted", "rejected", "deprecated", "superseded"]
+        },
+        "context": {
+          "type": "string"
+        },
+        "decision": {
+          "type": "string"
+        },
+        "consequences": {
+          "type": "string"
+        },
+        "alternatives_considered": {
+          "type": ["string", "null"]
+        },
+        "superseded_by": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        }
+      }
+    },
+    "MilestonePayload": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["planned", "active", "completed", "cancelled"]
+        },
+        "target_date": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "completed_date": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "description": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "LogEntryPayload": {
+      "type": "object",
+      "required": ["event_date", "summary"],
+      "properties": {
+        "event_date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "details": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "SavedCommandPayload": {
+      "type": "object",
+      "required": ["command_text"],
+      "properties": {
+        "command_text": {
+          "type": "string"
+        },
+        "explanation": {
+          "type": ["string", "null"]
+        },
+        "working_directory": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

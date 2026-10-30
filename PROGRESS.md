@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 0 --- Discovery and product contract
--   **Overall status:** Not started
+-   **Current phase:** Phase 0 --- Discovery and product contract (Complete)
+-   **Overall status:** Phase 0 complete; ready for Phase 1 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Product definition
+-   **Current milestone:** Engineering Foundation Setup (Pending Phase 1 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -25,9 +25,9 @@
 ## Phase summary
 
   Phase                                       Status        Completion date   Notes
-  ------------------------------------------- ------------- ----------------- -------
-  0\. Discovery and product contract          Not started   ---               
-  1\. Repository and engineering foundation   Not started   ---               
+  ------------------------------------------- ------------- ----------------- --------------------------------------------------
+  0\. Discovery and product contract          Complete      2026-10-30        PRD, architecture, ADRs 0001-0009, schema v1 ready
+  1\. Repository and engineering foundation   Not started   ---               Pending user approval to begin Phase 1
   2\. Core domain and storage                 Not started   ---               
   3\. CLI MVP                                 Not started   ---               
   4\. Git integration and timeline            Not started   ---               
@@ -43,32 +43,38 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   No active tasks.
+-   Phase 0 complete. Awaiting user approval to proceed to Phase 1.
 
 ## Blockers and risks
 
-  ID    Blocker / risk   Impact   Owner   Next action   Status
-  ----- ---------------- -------- ------- ------------- --------
-  ---   None recorded    ---      ---     ---           ---
+  ID    Blocker / risk                                                  Impact                                            Owner   Next action                                                                          Status
+  ----- --------------------------------------------------------------- ------------------------------------------------- ------- ------------------------------------------------------------------------------------ --------
+  R01   Extension binary delivery across platforms (Windows/macOS/Linux) Complexity in VS Code packaging and user install Core    Phase 6 packaging planning; evaluate optional pre-built release asset download fallback Open
+  R02   License formal selection                                        Clarifies community licensing before public release Core   Confirm dual MIT/Apache-2.0 recommendation prior to Phase 1 LICENSE file creation    Open
 
 ## Phase 0 --- Discovery and product contract
 
--   [ ] Confirm product name, repository name, license, and supported
+-   [x] Confirm product name, repository name, license, and supported
     platforms.
--   [ ] Define MVP and explicitly reject non-MVP features.
--   [ ] Write user stories for initialization, notes, decisions, search,
+-   [x] Define MVP and explicitly reject non-MVP features.
+-   [x] Write user stories for initialization, notes, decisions, search,
     timeline, and export.
--   [ ] Define privacy policy and collection boundaries.
--   [ ] Decide default storage location and Git ignore behavior.
--   [ ] Decide multi-root workspace behavior.
--   [ ] Define stable project identity and clone detection behavior.
--   [ ] Choose Rust/TypeScript workspace strategy.
--   [ ] Define CLI-to-core and extension-to-core communication.
--   [ ] Draft initial data model.
--   [ ] Draft export schema version 1.
--   [ ] Record major architecture decisions in `docs/decisions/`.
+-   [x] Define privacy policy and collection boundaries.
+-   [x] Decide default storage location and Git ignore behavior.
+-   [x] Decide multi-root workspace behavior.
+-   [x] Define stable project identity and clone detection behavior.
+-   [x] Choose Rust/TypeScript workspace strategy.
+-   [x] Define CLI-to-core and extension-to-core communication.
+-   [x] Draft initial data model.
+-   [x] Draft export schema version 1.
+-   [x] Record major architecture decisions in `docs/decisions/`.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- Product Requirements Document created at `docs/requirements/product-requirements.md` covering all 10 core user stories, MVP scope limits, platform matrix, and privacy rules.
+- Architecture Overview created at `docs/architecture/overview.md` with subsystem specifications and system flow diagram.
+- MVP Acceptance Checklist created at `docs/requirements/mvp-acceptance-checklist.md` covering platform, workspace, CRUD, timeline, search, and safety gates.
+- Export Schema v1 created at `schemas/export-v1.schema.json` and validated with `bun -e "JSON.parse(Bun.file(...))"`.
+- ADRs 0001 through 0009 documented in `docs/decisions/` covering storage, git exclusion, workspace isolation, project identity, monorepo structure, IPC protocol, SQLite persistence, and export format.
 
 ## Phase 1 --- Repository and engineering foundation
 
@@ -251,9 +257,9 @@
 
 Add newest entries first.
 
-  Date   Phase / task   Change                             Verification evidence
-  ------ -------------- ---------------------------------- -----------------------
-  ---    ---            No implementation completed yet.   ---
+  Date         Phase / task                               Change                                                                Verification evidence
+  ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 0: Discovery & Product Contract      Created PRD, Architecture Overview, MVP Checklist, JSON Schema v1, and ADRs 0003-0009. Updated PROGRESS.md. Validated schema syntax with Bun. Checked git status.
 
 ## Deferred decisions
 
@@ -261,27 +267,24 @@ Add newest entries first.
   Topic             Decision needed   Deadline /        Status
                                       trigger           
   ----------------- ----------------- ----------------- -----------------
-  License           Choose a license  Before public     Open
-                    compatible with   repository        
-                    intended          release           
-                    community and                       
-                    distribution                        
-                    goals.                              
+  License           Confirm dual      Before Phase 1    Recommended:
+                    MIT/Apache-2.0    foundation setup  dual MIT/Apache-2.0
+                    recommendation.                     
 
-  Global storage    Decide whether to Before storage    Open
-                    support a global  implementation    
-                    data directory in                   
+  Global storage    Decide whether to Before storage    Deferred to
+                    support a global  implementation    post-MVP; default
+                    data directory in (Phase 2)         is .devcontext/
                     MVP.                                
 
-  Core distribution Decide packaging  Before extension  Open
-                    strategy for Rust MVP               
+  Core distribution Decide packaging  Before extension  Pending Phase 6
+                    strategy for Rust MVP (Phase 6)     
                     core binaries                       
                     used by the                         
                     extension.                          
 
-  Shared knowledge  Decide exact UX   Before            Open
-                    for selectively   export/import     
-                    committing        release           
+  Shared knowledge  Decide exact UX   Before            Resolved via
+                    for selectively   export/import     Markdown export
+                    committing        release (Phase 7) & ADR 0003
                     Markdown records.                   
   -----------------------------------------------------------------------
 
