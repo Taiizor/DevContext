@@ -398,3 +398,364 @@ fn test_project_data_deletion_with_backup() {
 
     drop(storage);
 }
+
+#[test]
+fn test_schema_upgrade_0_9_0_to_1_0_0() {
+    let raw_0_9 = serde_json::json!({
+        "schema_version": "0.9.0",
+        "exported_at": "2026-10-30T10:00:00Z",
+        "project": {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "name": "LegacyProject",
+            "created_at": "2026-10-30T09:00:00Z"
+        },
+        "records": [
+            {
+                "id": "22222222-2222-2222-2222-222222222222",
+                "record_type": "note",
+                "title": "Migrated Note",
+                "created_at": "2026-10-30T09:30:00Z",
+                "updated_at": "2026-10-30T09:30:00Z",
+                "tags": ["legacy", "v0.9"],
+                "references": [],
+                "payload": {
+                    "content_markdown": "Preserved content from 0.9.0 schema"
+                }
+            }
+        ]
+    });
+
+    let upgraded = ExportService::upgrade_bundle(raw_0_9).unwrap();
+    assert_eq!(upgraded.schema_version, "1.0.0");
+    assert_eq!(upgraded.project.name, "LegacyProject");
+    assert_eq!(upgraded.records.len(), 1);
+    assert_eq!(upgraded.records[0].title, "Migrated Note");
+    assert_eq!(upgraded.records[0].tags, vec!["legacy", "v0.9"]);
+}
+
+#[test]
+fn test_unsupported_future_schema_version_rejection() {
+    let future_schema = serde_json::json!({
+        "schema_version": "2.0.0",
+        "exported_at": "2027-01-01T00:00:00Z",
+        "generator": { "name": "devcontext-future", "version": "2.0.0" },
+        "project": {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "name": "FutureProject",
+            "created_at": "2027-01-01T00:00:00Z"
+        },
+        "records": []
+    });
+
+    let result = ExportService::upgrade_bundle(future_schema);
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("Unsupported export schema version '2.0.0'"));
+    assert!(err_msg.contains("Please upgrade DevContext"));
+}
+
+#[test]
+fn test_conflict_strategy_merge() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    let existing_notes = storage.list_notes(project.id, false).unwrap();
+    let existing_note = &existing_notes[0];
+    let note_id = existing_note.record.id;
+
+    // Create an incoming bundle with the same note ID, newer timestamp, and new tags/references
+    let incoming_bundle = devcontext_core::export::ExportBundle {
+        schema_version: "1.0.0".to_string(),
+        exported_at: "2026-10-30T15:00:00Z".to_string(),
+        generator: devcontext_core::export::GeneratorInfo::default(),
+        project: devcontext_core::export::ExportProject {
+            id: project.id,
+            name: project.name.clone(),
+            created_at: project.created_at.clone(),
+            vcs: None,
+        },
+        records: vec![devcontext_core::export::ExportRecord {
+            id: note_id,
+            record_type: "note".to_string(),
+            title: "Merged Newer Title 🚀".to_string(),
+            created_at: existing_note.record.created_at.clone(),
+            updated_at: "2029-10-30T15:00:00Z".to_string(),
+            tags: vec!["incoming-tag".to_string(), "türkçe".to_string()],
+            references: vec![devcontext_core::export::ExportReference {
+                id: uuid::Uuid::new_v4(),
+                ref_type: "url".to_string(),
+                target: "https://devcontext.dev/docs".to_string(),
+                label: Some("Documentation".to_string()),
+                metadata: None,
+            }],
+            payload: serde_json::to_value(devcontext_core::export::NotePayload {
+                content_markdown: "Updated newer content markdown".to_string(),
+                category: None,
+                is_pinned: false,
+                is_archived: false,
+            })
+            .unwrap(),
+        }],
+    };
+
+    let bundle_file = root.join("merge-bundle.json");
+    fs::write(
+        &bundle_file,
+        serde_json::to_string(&incoming_bundle).unwrap(),
+    )
+    .unwrap();
+
+    let merge_opts = ImportOptions {
+        on_conflict: ConflictStrategy::Merge,
+        create_backup: false,
+        dry_run: false,
+    };
+
+    let res = ExportService::import_bundle(root, &bundle_file, &merge_opts).unwrap();
+    assert_eq!(res.merged_count, 1);
+    assert_eq!(res.conflicts_count, 1);
+
+    // Verify merged state in storage
+    let updated_note = storage.get_note(note_id).unwrap().unwrap();
+    assert_eq!(updated_note.record.title, "Merged Newer Title 🚀");
+    assert_eq!(
+        updated_note.content_markdown,
+        "Updated newer content markdown"
+    );
+    // Verify tags union: "türkçe", "unicode", "incoming-tag"
+    assert!(updated_note.record.tags.contains(&"türkçe".to_string()));
+    assert!(updated_note.record.tags.contains(&"unicode".to_string()));
+    assert!(updated_note
+        .record
+        .tags
+        .contains(&"incoming-tag".to_string()));
+
+    // Verify reference union
+    let refs = storage.list_references_for_record(note_id).unwrap();
+    assert_eq!(refs.len(), 1);
+    assert_eq!(refs[0].target, "https://devcontext.dev/docs");
+
+    drop(storage);
+}
+
+#[test]
+fn test_conflict_strategy_replace_cleans_references() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    let existing_notes = storage.list_notes(project.id, false).unwrap();
+    let note_id = existing_notes[0].record.id;
+
+    // Add initial reference
+    let initial_ref = devcontext_core::domain::Reference::new(
+        note_id,
+        devcontext_core::domain::ReferenceType::Url,
+        "https://old-link.com",
+        Some("Old Link".to_string()),
+        None,
+    )
+    .unwrap();
+    storage.save_reference(&initial_ref).unwrap();
+    assert_eq!(
+        storage.list_references_for_record(note_id).unwrap().len(),
+        1
+    );
+
+    // Incoming bundle with replacement reference
+    let incoming_bundle = devcontext_core::export::ExportBundle {
+        schema_version: "1.0.0".to_string(),
+        exported_at: "2026-10-30T16:00:00Z".to_string(),
+        generator: devcontext_core::export::GeneratorInfo::default(),
+        project: devcontext_core::export::ExportProject {
+            id: project.id,
+            name: project.name.clone(),
+            created_at: project.created_at.clone(),
+            vcs: None,
+        },
+        records: vec![devcontext_core::export::ExportRecord {
+            id: note_id,
+            record_type: "note".to_string(),
+            title: "Replaced Note Title".to_string(),
+            created_at: existing_notes[0].record.created_at.clone(),
+            updated_at: "2026-10-30T16:00:00Z".to_string(),
+            tags: vec!["replaced".to_string()],
+            references: vec![devcontext_core::export::ExportReference {
+                id: uuid::Uuid::new_v4(),
+                ref_type: "url".to_string(),
+                target: "https://new-replacement-link.com".to_string(),
+                label: Some("New Link".to_string()),
+                metadata: None,
+            }],
+            payload: serde_json::to_value(devcontext_core::export::NotePayload {
+                content_markdown: "Replaced content".to_string(),
+                category: None,
+                is_pinned: false,
+                is_archived: false,
+            })
+            .unwrap(),
+        }],
+    };
+
+    let bundle_file = root.join("replace-bundle.json");
+    fs::write(
+        &bundle_file,
+        serde_json::to_string(&incoming_bundle).unwrap(),
+    )
+    .unwrap();
+
+    let overwrite_opts = ImportOptions {
+        on_conflict: ConflictStrategy::Overwrite,
+        create_backup: false,
+        dry_run: false,
+    };
+
+    let res = ExportService::import_bundle(root, &bundle_file, &overwrite_opts).unwrap();
+    assert_eq!(res.overwritten_count, 1);
+
+    // Old reference should be replaced, NOT duplicated
+    let refs = storage.list_references_for_record(note_id).unwrap();
+    assert_eq!(refs.len(), 1);
+    assert_eq!(refs[0].target, "https://new-replacement-link.com");
+
+    drop(storage);
+}
+
+#[test]
+fn test_windows_ads_colon_and_null_byte_rejection() {
+    use devcontext_core::export::is_safe_archive_path;
+    use std::path::Path;
+
+    // Windows Alternate Data Streams (ADS)
+    assert!(!is_safe_archive_path(Path::new("normal.txt:evil.exe")));
+    assert!(!is_safe_archive_path(Path::new(
+        "subfolder/data.txt::$DATA"
+    )));
+
+    // Null bytes
+    assert!(!is_safe_archive_path(Path::new("malicious\0file.txt")));
+
+    // UNC Network paths
+    assert!(!is_safe_archive_path(Path::new(
+        "//remote-server/share/file.txt"
+    )));
+
+    // Standard safe path
+    assert!(is_safe_archive_path(Path::new("notes/valid-note.md")));
+}
+
+#[test]
+fn test_corrupted_truncated_archive_rejection() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let corrupt_zip = root.join("corrupted.zip");
+
+    // Write incomplete header bytes
+    fs::write(&corrupt_zip, b"PK\x03\x04incomplete_header_bytes").unwrap();
+
+    let extract_dir = root.join("extract_sandbox");
+    let res = extract_zip_safely(&corrupt_zip, &extract_dir);
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_import_atomicity_and_rollback_on_failure() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    // Active project starts with 1 note
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 1);
+
+    // Construct a bundle where record 1 is valid, but record 2 has an invalid payload
+    let broken_bundle = serde_json::json!({
+        "schema_version": "1.0.0",
+        "exported_at": "2026-10-30T17:00:00Z",
+        "generator": { "name": "devcontext-test", "version": "0.1.0" },
+        "project": {
+            "id": project.id.to_string(),
+            "name": project.name,
+            "created_at": project.created_at
+        },
+        "records": [
+            {
+                "id": uuid::Uuid::new_v4().to_string(),
+                "record_type": "note",
+                "title": "Valid Record 1",
+                "created_at": "2026-10-30T17:00:00Z",
+                "updated_at": "2026-10-30T17:00:00Z",
+                "tags": [],
+                "references": [],
+                "payload": {
+                    "content_markdown": "Valid markdown note"
+                }
+            },
+            {
+                "id": uuid::Uuid::new_v4().to_string(),
+                "record_type": "note",
+                "title": "Broken Record 2",
+                "created_at": "2026-10-30T17:01:00Z",
+                "updated_at": "2026-10-30T17:01:00Z",
+                "tags": [],
+                "references": [],
+                "payload": "BROKEN_STRING_INSTEAD_OF_OBJECT"
+            }
+        ]
+    });
+
+    let broken_file = root.join("broken.json");
+    fs::write(&broken_file, serde_json::to_string(&broken_bundle).unwrap()).unwrap();
+
+    let opts = ImportOptions {
+        on_conflict: ConflictStrategy::Skip,
+        create_backup: true,
+        dry_run: false,
+    };
+
+    let import_res = ExportService::import_bundle(root, &broken_file, &opts);
+    assert!(import_res.is_err());
+
+    // Verify atomicity: Record 1 was rolled back; active project still has only the 1 original note!
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 1);
+
+    drop(storage);
+}
+
+#[test]
+fn test_saved_command_working_directory_sanitization() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) =
+        WorkspaceManager::initialize_project(root, Some("PrivacyProject")).unwrap();
+
+    // Add command with sensitive user path in working directory
+    let cmd = SavedCommand::new(
+        project.id,
+        "Sensitive Build",
+        "cargo build",
+        None,
+        Some("C:/Users/alice/projects/secret_repo".to_string()),
+        vec![],
+    )
+    .unwrap();
+    storage.save_command(&cmd).unwrap();
+
+    let export_opts = ExportOptions {
+        format: ExportFormat::Json,
+        output_path: None,
+        redact_paths: false, // Default privacy mode
+    };
+
+    let (bundle, _) = ExportService::export_project(root, &export_opts).unwrap();
+    let exported_cmd = &bundle.records[0];
+    let payload: devcontext_core::export::SavedCommandPayload =
+        serde_json::from_value(exported_cmd.payload.clone()).unwrap();
+
+    // Verify username "alice" is redacted
+    let wd = payload.working_directory.unwrap();
+    assert!(!wd.contains("alice"));
+    assert!(wd.contains("<redacted>"));
+
+    drop(storage);
+}

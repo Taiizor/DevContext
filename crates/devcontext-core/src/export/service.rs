@@ -446,6 +446,7 @@ impl ExportService {
             let mut imported = 0;
             let mut skipped = 0;
             let mut overwritten = 0;
+            let mut merged = 0;
 
             for rec in &bundle.records {
                 let exists = storage.get_record_envelope(rec.id)?.is_some();
@@ -453,6 +454,7 @@ impl ExportService {
                     match options.on_conflict {
                         ConflictStrategy::Skip => skipped += 1,
                         ConflictStrategy::Overwrite => overwritten += 1,
+                        ConflictStrategy::Merge => merged += 1,
                         ConflictStrategy::GenerateNewId => imported += 1,
                     }
                 } else {
@@ -466,6 +468,7 @@ impl ExportService {
                 imported_count: imported,
                 skipped_count: skipped,
                 overwritten_count: overwritten,
+                merged_count: merged,
                 conflicts_count: conflicts,
                 backup_path: None,
             });
@@ -490,34 +493,58 @@ impl ExportService {
         let mut imported_count = 0;
         let mut skipped_count = 0;
         let mut overwritten_count = 0;
+        let mut merged_count = 0;
         let mut id_remap: HashMap<Uuid, Uuid> = HashMap::new();
 
-        for rec in &bundle.records {
-            let existing = storage.get_record_envelope(rec.id)?;
-            let (target_id, is_overwrite) = if existing.is_some() {
-                match options.on_conflict {
-                    ConflictStrategy::Skip => {
-                        skipped_count += 1;
-                        continue;
+        let import_execution = (|| -> Result<()> {
+            for rec in &bundle.records {
+                let existing = storage.get_record_envelope(rec.id)?;
+                let (target_id, is_overwrite, is_merge) = if existing.is_some() {
+                    match options.on_conflict {
+                        ConflictStrategy::Skip => {
+                            skipped_count += 1;
+                            continue;
+                        }
+                        ConflictStrategy::Overwrite => (rec.id, true, false),
+                        ConflictStrategy::Merge => (rec.id, false, true),
+                        ConflictStrategy::GenerateNewId => {
+                            let new_id = Uuid::new_v4();
+                            id_remap.insert(rec.id, new_id);
+                            (new_id, false, false)
+                        }
                     }
-                    ConflictStrategy::Overwrite => (rec.id, true),
-                    ConflictStrategy::GenerateNewId => {
-                        let new_id = Uuid::new_v4();
-                        id_remap.insert(rec.id, new_id);
-                        (new_id, false)
-                    }
+                } else {
+                    (rec.id, false, false)
+                };
+
+                Self::persist_imported_record(
+                    &storage,
+                    project.id,
+                    target_id,
+                    rec,
+                    &id_remap,
+                    is_overwrite,
+                    is_merge,
+                )?;
+
+                if is_overwrite {
+                    overwritten_count += 1;
+                } else if is_merge {
+                    merged_count += 1;
+                } else {
+                    imported_count += 1;
                 }
-            } else {
-                (rec.id, false)
-            };
-
-            Self::persist_imported_record(&storage, project.id, target_id, rec, &id_remap)?;
-
-            if is_overwrite {
-                overwritten_count += 1;
-            } else {
-                imported_count += 1;
             }
+            Ok(())
+        })();
+
+        // Atomicity and recovery safeguard: if any record fails, restore database from pre-import backup
+        if let Err(err) = import_execution {
+            if let Some(backup_path) = &backup_path_str {
+                let db_path = project_root.join(".devcontext").join("devcontext.db");
+                let _ = BackupService::restore_from_file(backup_path, &db_path);
+            }
+            return Err(err);
         }
 
         // Rebuild search index to ensure imported content is instantly searchable
@@ -529,6 +556,7 @@ impl ExportService {
             imported_count,
             skipped_count,
             overwritten_count,
+            merged_count,
             conflicts_count: conflicts,
             backup_path: backup_path_str,
         })
@@ -540,17 +568,73 @@ impl ExportService {
         record_id: Uuid,
         export_rec: &ExportRecord,
         id_remap: &HashMap<Uuid, Uuid>,
+        is_overwrite: bool,
+        is_merge: bool,
     ) -> Result<()> {
+        let (title, created_at, updated_at, tags) = if is_merge {
+            if let Some(existing_env) = storage.get_record_envelope(record_id)? {
+                let mut merged_tags = existing_env.tags;
+                for t in &export_rec.tags {
+                    if !merged_tags.contains(t) {
+                        merged_tags.push(t.clone());
+                    }
+                }
+
+                let incoming_newer = match (
+                    chrono::DateTime::parse_from_rfc3339(&export_rec.updated_at),
+                    chrono::DateTime::parse_from_rfc3339(&existing_env.updated_at),
+                ) {
+                    (Ok(inc), Ok(exist)) => inc >= exist,
+                    _ => export_rec.updated_at >= existing_env.updated_at,
+                };
+
+                if incoming_newer {
+                    (
+                        export_rec.title.clone(),
+                        existing_env.created_at,
+                        export_rec.updated_at.clone(),
+                        merged_tags,
+                    )
+                } else {
+                    (
+                        existing_env.title,
+                        existing_env.created_at,
+                        existing_env.updated_at,
+                        merged_tags,
+                    )
+                }
+            } else {
+                (
+                    export_rec.title.clone(),
+                    export_rec.created_at.clone(),
+                    export_rec.updated_at.clone(),
+                    export_rec.tags.clone(),
+                )
+            }
+        } else {
+            (
+                export_rec.title.clone(),
+                export_rec.created_at.clone(),
+                export_rec.updated_at.clone(),
+                export_rec.tags.clone(),
+            )
+        };
+
         let record = Record::with_id(
             record_id,
             project_id,
             RecordType::from_str(&export_rec.record_type)?,
-            export_rec.title.clone(),
-            export_rec.created_at.clone(),
-            export_rec.updated_at.clone(),
-            export_rec.tags.clone(),
+            title,
+            created_at,
+            updated_at,
+            tags,
             false,
         )?;
+
+        // If overwrite, wipe existing references first to avoid duplicate / orphaned links
+        if is_overwrite {
+            storage.clear_references_for_record(record_id)?;
+        }
 
         match export_rec.record_type.as_str() {
             "note" => {
@@ -644,7 +728,22 @@ impl ExportService {
         }
 
         // Persist references
+        let existing_refs = if is_merge {
+            storage.list_references_for_record(record_id)?
+        } else {
+            Vec::new()
+        };
+
         for r in &export_rec.references {
+            if is_merge {
+                let duplicate = existing_refs
+                    .iter()
+                    .any(|er| er.ref_type.to_string() == r.ref_type && er.target == r.target);
+                if duplicate {
+                    continue;
+                }
+            }
+
             let ref_type = ReferenceType::from_str(&r.ref_type)?;
             let ref_id = Uuid::new_v4();
             let reference = Reference::with_id(
@@ -700,6 +799,76 @@ impl ExportService {
         })
     }
 
+    /// Deterministically validates schema version and executes upgrade pipeline for older supported schemas.
+    pub fn upgrade_bundle(raw: serde_json::Value) -> Result<ExportBundle> {
+        let version_val = raw.get("schema_version").ok_or_else(|| {
+            CoreError::Validation("Missing 'schema_version' in export bundle".to_string())
+        })?;
+
+        let version_str = version_val.as_str().ok_or_else(|| {
+            CoreError::Validation("'schema_version' must be a string".to_string())
+        })?;
+
+        let semver_parts: Vec<&str> = version_str.split('.').collect();
+        let major: u64 = semver_parts
+            .first()
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| {
+                CoreError::Validation(format!("Invalid schema version format '{}'", version_str))
+            })?;
+
+        // Safely reject unsupported future major schemas
+        if major > 1 {
+            return Err(CoreError::Validation(format!(
+                "Unsupported export schema version '{}'. Supported versions: '0.9.0', '1.0.0'. Please upgrade DevContext to import this bundle.",
+                version_str
+            )));
+        }
+
+        // Current schema v1
+        if version_str == "1.0.0" || version_str == "1.0" {
+            let bundle: ExportBundle = serde_json::from_value(raw)
+                .map_err(|e| CoreError::Validation(format!("Schema validation failed: {}", e)))?;
+            return Ok(bundle);
+        }
+
+        // Schema 0.9.0 (pre-release supported schema) upgrade path
+        if version_str == "0.9.0" || version_str == "0.9" {
+            let mut upgraded = raw.clone();
+            if let Some(obj) = upgraded.as_object_mut() {
+                obj.insert(
+                    "schema_version".to_string(),
+                    serde_json::Value::String(SCHEMA_VERSION_1.to_string()),
+                );
+                if !obj.contains_key("generator") {
+                    obj.insert(
+                        "generator".to_string(),
+                        serde_json::to_value(GeneratorInfo::default())?,
+                    );
+                }
+            }
+            let bundle: ExportBundle = serde_json::from_value(upgraded).map_err(|e| {
+                CoreError::Validation(format!(
+                    "Failed to upgrade schema from '{}' to {}: {}",
+                    version_str, SCHEMA_VERSION_1, e
+                ))
+            })?;
+            return Ok(bundle);
+        }
+
+        // Compatible 1.x minor upgrades
+        if major == 1 {
+            let bundle: ExportBundle = serde_json::from_value(raw)
+                .map_err(|e| CoreError::Validation(format!("Schema validation failed: {}", e)))?;
+            return Ok(bundle);
+        }
+
+        Err(CoreError::Validation(format!(
+            "Unsupported export schema version '{}'. Supported versions: '0.9.0', '1.0.0'.",
+            version_str
+        )))
+    }
+
     fn load_bundle_from_path(bundle_path: &Path) -> Result<(ExportBundle, String)> {
         if !bundle_path.exists() {
             return Err(CoreError::NotFound(format!(
@@ -719,9 +888,18 @@ impl ExportService {
             let bundle = read_bundle_from_zip(bundle_path)?;
             Ok((bundle, "zip_archive".to_string()))
         } else {
+            let metadata = fs::metadata(bundle_path)?;
+            if metadata.len() > crate::export::model::MAX_JSON_PAYLOAD_BYTES {
+                return Err(CoreError::Validation(format!(
+                    "JSON payload size exceeds maximum permitted limit ({} MB)",
+                    crate::export::model::MAX_JSON_PAYLOAD_BYTES / 1024 / 1024
+                )));
+            }
+
             let content = fs::read_to_string(bundle_path)?;
-            let bundle: ExportBundle = serde_json::from_str(&content)
+            let raw: serde_json::Value = serde_json::from_str(&content)
                 .map_err(|e| CoreError::Validation(format!("Invalid export JSON: {}", e)))?;
+            let bundle = Self::upgrade_bundle(raw)?;
             Ok((bundle, "json_bundle".to_string()))
         }
     }

@@ -35,19 +35,20 @@ pub fn handle_import(
     renderer.success(&result, || {
         if result.dry_run {
             format!(
-                "=== DevContext Import Dry-Run / Preview ===\n  Target Bundle:    '{}'\n  Total Incoming:   {}\n  Would Import:     {}\n  Would Skip:       {}\n  Would Overwrite:  {}\n  Conflicting IDs:  {}\n  Conflict Policy:  {}\n\nNo changes made to project database (dry-run mode).",
+                "=== DevContext Import Dry-Run / Preview ===\n  Target Bundle:    '{}'\n  Total Incoming:   {}\n  Would Import:     {}\n  Would Skip:       {}\n  Would Overwrite:  {}\n  Would Merge:      {}\n  Conflicting IDs:  {}\n  Conflict Policy:  {}\n\nNo changes made to project database (dry-run mode).",
                 args.bundle_path.display(),
                 result.total_incoming,
                 result.imported_count,
                 result.skipped_count,
                 result.overwritten_count,
+                result.merged_count,
                 result.conflicts_count,
                 on_conflict
             )
         } else {
             let mut msg = format!(
-                "Import completed: {} imported, {} overwritten, {} skipped (total incoming: {})",
-                result.imported_count, result.overwritten_count, result.skipped_count, result.total_incoming
+                "Import completed: {} imported, {} overwritten, {} merged, {} skipped (total incoming: {})",
+                result.imported_count, result.overwritten_count, result.merged_count, result.skipped_count, result.total_incoming
             );
             if let Some(backup) = &result.backup_path {
                 msg.push_str(&format!("\nAutomatic pre-import backup snapshot saved to: '{}'", backup));

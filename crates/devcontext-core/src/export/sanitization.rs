@@ -106,16 +106,42 @@ pub fn normalize_slashes(s: &str) -> String {
     s.replace('\\', "/")
 }
 
-/// Validates that a relative path extracted from an archive does not escape the destination directory.
+/// Validates that a relative path extracted from an archive does not escape the destination directory
+/// and contains no malicious path components (Zip Slip, Alternate Data Streams, null bytes, UNC paths).
 pub fn is_safe_archive_path(entry_path: &Path) -> bool {
     let path_str = entry_path.to_string_lossy();
-    let norm = normalize_slashes(&path_str);
 
-    // Rejects absolute paths and windows drive prefixes
-    if is_absolute_path_str(&norm) {
+    // 1. Rejection of null bytes
+    if path_str.contains('\0') {
         return false;
     }
 
+    // 2. Rejection of Windows Alternate Data Streams and drive prefixes (colons)
+    if path_str.contains(':') {
+        return false;
+    }
+
+    let norm = normalize_slashes(&path_str);
+    let trimmed = norm.trim();
+
+    // 3. Rejection of absolute POSIX and UNC network paths
+    if is_absolute_path_str(trimmed) || trimmed.starts_with("//") {
+        return false;
+    }
+
+    // 4. Segment-by-segment inspection
+    for segment in trimmed.split('/') {
+        let seg = segment.trim();
+        if seg == ".." {
+            return false;
+        }
+        // Disallow leading/trailing whitespace tricks in filenames on Windows
+        if seg.starts_with(' ') || seg.ends_with(' ') {
+            return false;
+        }
+    }
+
+    // 5. Rust path components inspection
     for component in entry_path.components() {
         match component {
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => return false,

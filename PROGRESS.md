@@ -264,32 +264,34 @@
 
 **Verification evidence:**
 - **Versioned JSON & Markdown Hierarchy (`crates/devcontext-core/src/export/`):**
-  - Typed interchange data model conforming to `schemas/export-v1.schema.json` (schema 1.0.0). Rejects unsupported major versions (e.g. `2.0.0`).
+  - Typed interchange data model conforming to `schemas/export-v1.schema.json` (schema 1.0.0).
+  - Schema upgrade path via `upgrade_bundle`: deterministically supports schema `1.0.0`, upgrades older supported pre-release schema `0.9.0` preserving IDs, timestamps, references, and payloads, and safely rejects unsupported newer major versions (e.g. `2.0.0`).
   - Human-readable Markdown export directory structure (`decisions/`, `notes/`, `milestones/`, `logs/`, `commands/`, `README.md`) with YAML frontmatter metadata and generated table of contents.
   - Portable ZIP archives packaging `export-v1.json` at root alongside Markdown hierarchy.
 - **Privacy & Security (`sanitization.rs` & `archive.rs`):**
   - Workspace-relative path relativization (`./src/main.rs`).
-  - Cross-platform machine-specific user directory redaction (`~user/...`) and explicit `--redact-paths` sanitization (`[REDACTED_EXTERNAL_PATH]`).
-  - Strict Zip Slip traversal protection: rejects `..` path segments, absolute archive paths, null bytes, and out-of-sandbox target paths.
-- **Data Safety, Conflict Resolution & Inspection:**
-  - Conflict resolution strategies (`skip`, `overwrite`, `generate-new-id`) with `--dry-run` simulation mode.
-  - Automatic pre-import SQLite backup snapshot created in `.devcontext/backups/import-backup-<timestamp>.db` before modifying records.
+  - Cross-platform machine-specific user directory redaction (`~user/...` / `<redacted>`) across references and saved command working directories, plus explicit `--redact-paths` sanitization (`[REDACTED_EXTERNAL_PATH]`).
+  - Strict Zip Slip traversal protection: rejects `..` path segments, absolute archive paths, null bytes (`\0`), Windows Alternate Data Streams (`:`), UNC paths, and symlink archive entries (`unix_mode & 0o120000`).
+  - Archive resource limits: enforces max archive size (100 MB), max entries (10,000), max uncompressed entry size (50 MB), max total uncompressed size (200 MB), max compression ratio (100x zip-bomb guard), and max JSON payload size (25 MB). Cleans up temporary sandbox on extraction failure.
+- **Data Safety, Conflict Resolution & Recovery:**
+  - Complete conflict resolution policies: `skip`, `overwrite` / `replace` (with orphaned reference wiping), `merge` (tag union, deduplicated reference union, timestamp-based field updates), and `generate-new-id`.
+  - Atomicity and rollback recovery: pre-import SQLite backup snapshot created in `.devcontext/backups/import-backup-<timestamp>.db` before modifying records; failed/aborted imports automatically restore database from backup.
   - Complete project data deletion (`devcontext delete-data --force`) with automatic pre-delete snapshot (`pre-delete-backup-<timestamp>.db`).
   - Offline inspection command (`devcontext inspect [file]`) auditing record counts and conflicts prior to import.
 - **CLI Subcommands (`apps/cli/src/commands/`):**
   - `devcontext export [--format <json|markdown|zip>] [--out <path>] [--preview] [--redact-paths] [--json]`
-  - `devcontext import <file> [--on-conflict <skip|overwrite|generate-new-id>] [--dry-run] [--json]`
+  - `devcontext import <file> [--on-conflict <skip|overwrite|replace|merge|generate-new-id>] [--dry-run] [--json]`
   - `devcontext inspect [file] [--json]`
   - `devcontext delete-data [--force] [--json]`
 - **VS Code Extension Integration (`apps/vscode-extension/`):**
   - `devcontext.export`: QuickPick format selector, interactive preview modal detailing record counts and path redaction warning, and user confirmation.
-  - `devcontext.import`: Open dialog, safety guarantee confirmation, and client import execution.
+  - `devcontext.import`: Open dialog, safety guarantee confirmation, conflict policy selection with explicit overwrite warning, and client import execution.
   - `devcontext.inspect`: QuickPick audit modal displaying bundle record counts and schema version.
   - `devcontext.deleteData`: Dual-confirmation destructive safety dialog with automatic backup assurance.
 - **Automated Verification:**
-  - `cargo test -p devcontext-core --test export_import_test`: 7 integration tests passing.
+  - `cargo test -p devcontext-core --test export_import_test`: 15 integration tests passing (including schema upgrades, future version rejection, merge semantics, replace reference cleanup, zip bomb protection, ADS/null-byte rejection, and atomic rollback on failure).
   - `cargo test -p devcontext-cli --test cli_export_import_test`: 1 CLI integration test passing.
-  - `cargo test --workspace`: 84 total Rust tests passing across core and CLI with 0 failures.
+  - `cargo test --workspace`: 92 total Rust tests passing across core and CLI with 0 failures.
   - `cargo clippy --all-targets --all-features -- -D warnings`: 0 warnings.
   - `cargo fmt --check`: 0 issues.
   - `cd apps/vscode-extension && bun test`: 68 passing tests across 11 files (including `real_export_import_e2e.test.ts` and `export_import_preview.test.ts`).

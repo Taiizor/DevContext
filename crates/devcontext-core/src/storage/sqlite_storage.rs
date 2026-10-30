@@ -919,6 +919,18 @@ impl SqliteStorage {
         Ok(affected > 0)
     }
 
+    pub fn clear_references_for_record(&self, record_id: Uuid) -> Result<usize> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CoreError::Concurrency(e.to_string()))?;
+        let affected = conn.execute(
+            "DELETE FROM references_links WHERE record_id = ?1;",
+            params![record_id.to_string()],
+        )?;
+        Ok(affected)
+    }
+
     // ==========================================
     // Full-Text Search (FTS5) Query Operations
     // ==========================================

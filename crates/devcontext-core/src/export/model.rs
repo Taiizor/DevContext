@@ -8,6 +8,24 @@ use uuid::Uuid;
 
 pub const SCHEMA_VERSION_1: &str = "1.0.0";
 
+/// Maximum archive file size permitted for import (100 MB).
+pub const MAX_ARCHIVE_SIZE_BYTES: u64 = 100 * 1024 * 1024;
+
+/// Maximum number of file entries permitted in an archive.
+pub const MAX_ARCHIVE_ENTRIES: usize = 10_000;
+
+/// Maximum uncompressed bytes allowed per individual entry (50 MB).
+pub const MAX_ENTRY_UNCOMPRESSED_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Maximum total uncompressed bytes allowed across entire archive (200 MB).
+pub const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Maximum JSON payload size in bytes permitted (25 MB).
+pub const MAX_JSON_PAYLOAD_BYTES: u64 = 25 * 1024 * 1024;
+
+/// Maximum permitted compression ratio (uncompressed/compressed) to mitigate zip bombs.
+pub const MAX_COMPRESSION_RATIO: u64 = 100;
+
 /// Supported export format targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -49,6 +67,7 @@ impl FromStr for ExportFormat {
 pub enum ConflictStrategy {
     Skip,
     Overwrite,
+    Merge,
     GenerateNewId,
 }
 
@@ -57,6 +76,7 @@ impl fmt::Display for ConflictStrategy {
         match self {
             Self::Skip => write!(f, "skip"),
             Self::Overwrite => write!(f, "overwrite"),
+            Self::Merge => write!(f, "merge"),
             Self::GenerateNewId => write!(f, "generate-new-id"),
         }
     }
@@ -68,10 +88,11 @@ impl FromStr for ConflictStrategy {
     fn from_str(s: &str) -> Result<Self> {
         match s.trim().to_lowercase().as_str() {
             "skip" => Ok(Self::Skip),
-            "overwrite" => Ok(Self::Overwrite),
+            "overwrite" | "replace" => Ok(Self::Overwrite),
+            "merge" => Ok(Self::Merge),
             "generate-new-id" | "new-id" | "rename" => Ok(Self::GenerateNewId),
             _ => Err(CoreError::Validation(format!(
-                "Invalid conflict strategy '{}'. Expected 'skip', 'overwrite', or 'generate-new-id'.",
+                "Invalid conflict strategy '{}'. Expected 'skip', 'overwrite'/'replace', 'merge', or 'generate-new-id'.",
                 s
             ))),
         }
@@ -246,6 +267,7 @@ pub struct ImportResult {
     pub imported_count: usize,
     pub skipped_count: usize,
     pub overwritten_count: usize,
+    pub merged_count: usize,
     pub conflicts_count: usize,
     pub backup_path: Option<String>,
 }

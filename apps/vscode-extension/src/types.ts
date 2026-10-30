@@ -259,6 +259,7 @@ export interface ImportResult {
   imported_count: number;
   skipped_count: number;
   overwritten_count: number;
+  merged_count?: number;
   conflicts_count: number;
   backup_path?: string | null;
 }

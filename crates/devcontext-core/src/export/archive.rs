@@ -2,7 +2,10 @@
 
 use crate::error::{CoreError, Result};
 use crate::export::markdown::generate_markdown_export;
-use crate::export::model::ExportBundle;
+use crate::export::model::{
+    ExportBundle, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_SIZE_BYTES, MAX_COMPRESSION_RATIO,
+    MAX_ENTRY_UNCOMPRESSED_BYTES, MAX_JSON_PAYLOAD_BYTES, MAX_TOTAL_UNCOMPRESSED_BYTES,
+};
 use crate::export::sanitization::{is_safe_archive_path, normalize_slashes};
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -69,7 +72,8 @@ fn add_dir_to_zip<W: Write + std::io::Seek>(
     Ok(())
 }
 
-/// Safely extracts a ZIP archive into `dest_dir` with strict path traversal checks.
+/// Safely extracts a ZIP archive into `dest_dir` with strict path traversal checks,
+/// entry-count limits, and decompression-ratio / zip-bomb guards.
 pub fn extract_zip_safely(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf> {
     if !zip_path.exists() {
         return Err(CoreError::NotFound(format!(
@@ -78,32 +82,94 @@ pub fn extract_zip_safely(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf> {
         )));
     }
 
+    let file = File::open(zip_path)?;
+    let metadata = file.metadata()?;
+    if metadata.len() > MAX_ARCHIVE_SIZE_BYTES {
+        return Err(CoreError::Validation(format!(
+            "Archive file size ({} bytes) exceeds maximum permitted limit ({} MB)",
+            metadata.len(),
+            MAX_ARCHIVE_SIZE_BYTES / 1024 / 1024
+        )));
+    }
+
     fs::create_dir_all(dest_dir)?;
     let canonical_dest = dest_dir.canonicalize()?;
 
-    let file = File::open(zip_path)?;
     let mut archive = ZipArchive::new(file)?;
+    if archive.len() > MAX_ARCHIVE_ENTRIES {
+        let _ = fs::remove_dir_all(dest_dir);
+        return Err(CoreError::Validation(format!(
+            "Archive contains {} entries, exceeding maximum allowed limit ({})",
+            archive.len(),
+            MAX_ARCHIVE_ENTRIES
+        )));
+    }
+
+    let mut total_uncompressed_bytes: u64 = 0;
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
+        let mut entry = archive.by_index(i).map_err(|e| {
+            let _ = fs::remove_dir_all(dest_dir);
+            CoreError::Validation(format!(
+                "Corrupted or unreadable archive entry at index {}: {}",
+                i, e
+            ))
+        })?;
+
         let raw_name = entry.name().to_string();
         let entry_path = PathBuf::from(&raw_name);
 
         // Security Check 1: Reject entries that are not safe relative paths
         if !is_safe_archive_path(&entry_path) {
+            let _ = fs::remove_dir_all(dest_dir);
             return Err(CoreError::Validation(format!(
                 "Path traversal security violation in archive entry: '{}'",
                 raw_name
             )));
         }
 
+        // Security Check 2: Reject symbolic links to prevent sandbox escape
+        if let Some(mode) = entry.unix_mode() {
+            if (mode & 0o170000) == 0o120000 {
+                let _ = fs::remove_dir_all(dest_dir);
+                return Err(CoreError::Validation(format!(
+                    "Archive contains forbidden symbolic link entry: '{}'",
+                    raw_name
+                )));
+            }
+        }
+
+        // Security Check 3: Resource & Zip-bomb limit verification
+        let entry_uncompressed = entry.size();
+        if entry_uncompressed > MAX_ENTRY_UNCOMPRESSED_BYTES {
+            let _ = fs::remove_dir_all(dest_dir);
+            return Err(CoreError::Validation(format!(
+                "Archive entry '{}' uncompressed size exceeds limit ({} MB)",
+                raw_name,
+                MAX_ENTRY_UNCOMPRESSED_BYTES / 1024 / 1024
+            )));
+        }
+
+        let entry_compressed = entry.compressed_size();
+        if entry_compressed > 0
+            && entry_uncompressed / entry_compressed > MAX_COMPRESSION_RATIO
+            && entry_uncompressed > 1024 * 1024
+        {
+            let _ = fs::remove_dir_all(dest_dir);
+            return Err(CoreError::Validation(format!(
+                "Suspicious compression ratio (zip-bomb protection) in entry '{}'",
+                raw_name
+            )));
+        }
+
         let outpath = dest_dir.join(&entry_path);
 
-        // Security Check 2: Verify normalized target stays strictly within canonical destination
+        // Security Check 4: Verify normalized target stays strictly within canonical destination
         if let Some(parent) = outpath.parent() {
             fs::create_dir_all(parent)?;
             let canonical_parent = parent.canonicalize()?;
             if !canonical_parent.starts_with(&canonical_dest) {
+                let _ = fs::remove_dir_all(dest_dir);
                 return Err(CoreError::Validation(format!(
                     "Archive entry escapes destination directory: '{}'",
                     raw_name
@@ -114,8 +180,30 @@ pub fn extract_zip_safely(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf> {
         if entry.is_dir() {
             fs::create_dir_all(&outpath)?;
         } else {
-            let mut outfile = File::create(&outpath)?;
-            std::io::copy(&mut entry, &mut outfile)?;
+            let mut outfile = File::create(&outpath).inspect_err(|_| {
+                let _ = fs::remove_dir_all(dest_dir);
+            })?;
+            let mut limited = (&mut entry).take(MAX_ENTRY_UNCOMPRESSED_BYTES + 1);
+            let written = std::io::copy(&mut limited, &mut outfile).inspect_err(|_| {
+                let _ = fs::remove_dir_all(dest_dir);
+            })?;
+
+            if written > MAX_ENTRY_UNCOMPRESSED_BYTES {
+                let _ = fs::remove_dir_all(dest_dir);
+                return Err(CoreError::Validation(format!(
+                    "Decompressed data for entry '{}' exceeded maximum allowed size",
+                    raw_name
+                )));
+            }
+
+            total_uncompressed_bytes += written;
+            if total_uncompressed_bytes > MAX_TOTAL_UNCOMPRESSED_BYTES {
+                let _ = fs::remove_dir_all(dest_dir);
+                return Err(CoreError::Validation(format!(
+                    "Total uncompressed archive size exceeds maximum limit ({} MB)",
+                    MAX_TOTAL_UNCOMPRESSED_BYTES / 1024 / 1024
+                )));
+            }
         }
     }
 
@@ -132,19 +220,52 @@ pub fn read_bundle_from_zip(zip_path: &Path) -> Result<ExportBundle> {
     }
 
     let file = File::open(zip_path)?;
+    let metadata = file.metadata()?;
+    if metadata.len() > MAX_ARCHIVE_SIZE_BYTES {
+        return Err(CoreError::Validation(format!(
+            "Archive file size exceeds limit ({} MB)",
+            MAX_ARCHIVE_SIZE_BYTES / 1024 / 1024
+        )));
+    }
+
     let mut archive = ZipArchive::new(file)?;
+    if archive.len() > MAX_ARCHIVE_ENTRIES {
+        return Err(CoreError::Validation(format!(
+            "Archive contains {} entries, exceeding maximum allowed limit ({})",
+            archive.len(),
+            MAX_ARCHIVE_ENTRIES
+        )));
+    }
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
+        let mut entry = archive.by_index(i).map_err(|e| {
+            CoreError::Validation(format!("Corrupted archive entry at index {}: {}", i, e))
+        })?;
         let name = entry.name().to_string();
         let normalized = normalize_slashes(&name);
 
         if normalized == "export-v1.json" || normalized.ends_with("/export-v1.json") {
+            if entry.size() > MAX_JSON_PAYLOAD_BYTES {
+                return Err(CoreError::Validation(format!(
+                    "export-v1.json payload size exceeds maximum limit ({} MB)",
+                    MAX_JSON_PAYLOAD_BYTES / 1024 / 1024
+                )));
+            }
+
             let mut contents = String::new();
-            entry.read_to_string(&mut contents)?;
-            let bundle: ExportBundle = serde_json::from_str(&contents).map_err(|e| {
+            let mut limited = (&mut entry).take(MAX_JSON_PAYLOAD_BYTES + 1);
+            limited.read_to_string(&mut contents)?;
+
+            if contents.len() as u64 > MAX_JSON_PAYLOAD_BYTES {
+                return Err(CoreError::Validation(
+                    "export-v1.json exceeds maximum payload limit".to_string(),
+                ));
+            }
+
+            let raw: serde_json::Value = serde_json::from_str(&contents).map_err(|e| {
                 CoreError::Validation(format!("Invalid export-v1.json in archive: {}", e))
             })?;
+            let bundle = crate::export::service::ExportService::upgrade_bundle(raw)?;
             return Ok(bundle);
         }
     }
