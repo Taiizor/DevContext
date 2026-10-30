@@ -237,9 +237,9 @@
   - References: `openReference` safely opening line ranges, workspace folders, external URLs, or Git commit hashes; `linkFileToNote` linking active files.
   - Export/Import: `devcontext.export` and `devcontext.import` presenting detailed preview modals (record counts, privacy redaction summary) and requiring explicit user confirmation before selecting folders or executing.
   - Doctor: `devcontext.doctor` outputting system and storage diagnostics directly to a dedicated OutputChannel.
-- **Automated Test Suites (58 Bun tests + Real Extension Host + 72 Rust tests):**
-  - Bun test suite (`cd apps/vscode-extension && bun test`): 58 passing tests across 9 suites (`client_and_ipc.test.ts`, `commands_and_workflows.test.ts`, `export_import_preview.test.ts`, `extension.test.ts`, `locator_and_handshake.test.ts`, `views_and_providers.test.ts`, `workspace_and_isolation.test.ts`, `real_core_integration.test.ts`, `real_workflow_e2e.test.ts`).
-  - Real Extension Host test suite (`bun run test:integration` via `@vscode/test-electron`): Launched local VS Code Extension Development Host, verified extension identity (`devcontext.devcontext`), all 24 commands registered and active, reference actions (file with anchor, external URL, git commit, missing target), tree view resolution, and clean deactivation.
+- **Automated Test Suites (62 Bun tests + Real Extension Host + 72 Rust tests):**
+  - Bun test suite (`cd apps/vscode-extension && bun test`): 62 passing tests across 10 suites (`client_and_ipc.test.ts`, `commands_and_workflows.test.ts`, `export_import_preview.test.ts`, `extension.test.ts`, `git_commit_reference.test.ts`, `locator_and_handshake.test.ts`, `views_and_providers.test.ts`, `workspace_and_isolation.test.ts`, `real_core_integration.test.ts`, `real_workflow_e2e.test.ts`).
+  - Real Extension Host test suite (`bun run test:integration` via `@vscode/test-electron`): Launched local VS Code Extension Development Host, verified extension identity (`devcontext.devcontext`), all 24 commands registered and active, reference actions (file with line range anchor, external URL, real git commit opening syntax-colored diff editor in an isolated 2-commit git repository, unavailable and invalid commit SHAs, missing target handling), tree view resolution, and clean deactivation.
   - TypeScript typecheck (`bun run typecheck`): 0 errors (`tsc --noEmit`).
   - Rust workspace test suite (`cargo test --workspace`): 72 passing tests across all crates (61 core + 11 CLI).
   - Rust formatting & clippy (`cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`): 0 warnings.
@@ -309,7 +309,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
-  2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions, status bar, and test suite). Real Extension Host verification + 58 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
+  2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions including real Git commit diffs, status bar, and test suite). Real Extension Host verification + 62 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
   2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), Turkish search normalization, BM25 ranking, ReferenceResolver with canonical traversal security, CLI search command, and test suite. 72 Rust tests + 2 TS tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.

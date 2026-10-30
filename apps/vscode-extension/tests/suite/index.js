@@ -3,6 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const cp = require('child_process');
 
 exports.run = async function() {
   console.log('[ExtensionHost] Starting Real Extension Host Verification...');
@@ -92,6 +93,22 @@ exports.run = async function() {
   );
 
   try {
+    // 6.0 Initialize an isolated Git repository with two real commits
+    cp.execSync('git init', { cwd: tempDir, stdio: 'pipe' });
+    cp.execSync('git config user.email "test@devcontext.local"', { cwd: tempDir, stdio: 'pipe' });
+    cp.execSync('git config user.name "Test DevContext"', { cwd: tempDir, stdio: 'pipe' });
+
+    fs.writeFileSync(path.join(tempDir, 'file1.txt'), 'Initial commit content\n', 'utf8');
+    cp.execSync('git add file1.txt', { cwd: tempDir, stdio: 'pipe' });
+    cp.execSync('git commit -m "feat: initial commit"', { cwd: tempDir, stdio: 'pipe' });
+
+    fs.writeFileSync(path.join(tempDir, 'file2.txt'), 'Second commit content\n', 'utf8');
+    cp.execSync('git add file2.txt', { cwd: tempDir, stdio: 'pipe' });
+    cp.execSync('git commit -m "feat: second commit with architecture decision"', { cwd: tempDir, stdio: 'pipe' });
+
+    const commitSha = cp.execSync('git rev-parse HEAD', { cwd: tempDir, encoding: 'utf8' }).trim();
+    console.log(`[ExtensionHost] Created isolated Git repository with commit SHA: ${commitSha}`);
+
     // 6.1 Project-relative file reference with line range anchor (#L2-L4)
     await vscode.commands.executeCommand(
       'devcontext.openReference',
@@ -114,16 +131,60 @@ exports.run = async function() {
       created_at: new Date().toISOString(),
     });
 
-    // 6.3 Git commit reference
-    await vscode.commands.executeCommand('devcontext.openReference', {
-      id: 'ref-c1',
-      record_id: 'rec-1',
-      ref_type: 'git_commit',
-      target: '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
-      created_at: new Date().toISOString(),
-    });
+    // 6.3 Valid Git commit reference opens meaningful diff document in editor
+    await vscode.commands.executeCommand(
+      'devcontext.openReference',
+      {
+        id: 'ref-c1',
+        record_id: 'rec-1',
+        ref_type: 'git_commit',
+        target: commitSha,
+        created_at: new Date().toISOString(),
+      },
+      tempDir
+    );
 
-    // 6.4 Missing file reference (handles gracefully without throwing)
+    const activeEditor = vscode.window.activeTextEditor;
+    assert.ok(activeEditor, 'An active text editor must be open for Git commit diff');
+    assert.strictEqual(activeEditor.document.languageId, 'diff', 'Opened commit document must have diff language mode');
+    const commitContent = activeEditor.document.getText();
+    assert.ok(
+      commitContent.includes('feat: second commit with architecture decision'),
+      'Commit diff document must contain commit message'
+    );
+    assert.ok(
+      commitContent.includes('file2.txt'),
+      'Commit diff document must contain changed file stats'
+    );
+    console.log('[ExtensionHost] Real Git commit diff editor view verified with syntax coloring and patch content!');
+
+    // 6.4 Unavailable commit SHA handled gracefully without unhandled rejection
+    await vscode.commands.executeCommand(
+      'devcontext.openReference',
+      {
+        id: 'ref-c2',
+        record_id: 'rec-1',
+        ref_type: 'git_commit',
+        target: '0000000000000000000000000000000000000000',
+        created_at: new Date().toISOString(),
+      },
+      tempDir
+    );
+
+    // 6.5 Invalid non-hex commit SHA handled gracefully without unhandled rejection
+    await vscode.commands.executeCommand(
+      'devcontext.openReference',
+      {
+        id: 'ref-c3',
+        record_id: 'rec-1',
+        ref_type: 'git_commit',
+        target: 'not-a-valid-sha!',
+        created_at: new Date().toISOString(),
+      },
+      tempDir
+    );
+
+    // 6.6 Missing file reference (handles gracefully without throwing)
     await vscode.commands.executeCommand(
       'devcontext.openReference',
       {
@@ -135,7 +196,7 @@ exports.run = async function() {
       },
       tempDir
     );
-    console.log('[ExtensionHost] All reference actions (file with range, URL, git commit, missing) verified successfully!');
+    console.log('[ExtensionHost] All reference actions (file with range, URL, real git commit diff, invalid/missing targets) verified successfully!');
   } finally {
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });

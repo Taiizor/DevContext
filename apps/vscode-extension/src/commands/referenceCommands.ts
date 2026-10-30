@@ -1,8 +1,67 @@
+import { execFile } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { CoreClient } from '../core/client';
 import type { Reference } from '../types';
 import type { WorkspaceManager } from '../workspace/workspaceManager';
+
+/**
+ * Retrieves commit details and patch diff via read-only offline git command.
+ */
+function fetchGitCommitDiff(
+  commitSha: string,
+  root: string
+): Promise<{ success: boolean; content?: string; error?: string }> {
+  return new Promise((resolve) => {
+    // 1. Format validation (7-40 hex characters)
+    if (!/^[0-9a-f]{7,40}$/i.test(commitSha.trim())) {
+      resolve({
+        success: false,
+        error: `Invalid Git commit hash '${commitSha}'. Expected 7-40 hexadecimal characters.`,
+      });
+      return;
+    }
+
+    execFile(
+      'git',
+      ['show', '--stat', '-p', commitSha.trim()],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          GIT_NO_LAZY_FETCH: '1',
+          GIT_OPTIONAL_LOCKS: '0',
+          GIT_TERMINAL_PROMPT: '0',
+        },
+        maxBuffer: 5 * 1024 * 1024,
+      },
+      (err, stdout, stderr) => {
+        if (err) {
+          const stderrMsg = stderr.trim();
+          if (err.message.includes('ENOENT')) {
+            resolve({
+              success: false,
+              error: `Git executable was not found on PATH. Cannot inspect commit '${commitSha}'.`,
+            });
+          } else if (stderrMsg.includes('not a git repository')) {
+            resolve({
+              success: false,
+              error: `Workspace '${path.basename(root)}' is not a Git repository. Cannot open commit '${commitSha}'.`,
+            });
+          } else {
+            resolve({
+              success: false,
+              error: `Commit '${commitSha}' was not found in the local Git repository.`,
+            });
+          }
+          return;
+        }
+
+        resolve({ success: true, content: stdout });
+      }
+    );
+  });
+}
 
 export function registerReferenceCommands(
   context: vscode.ExtensionContext,
@@ -79,9 +138,32 @@ export function registerReferenceCommands(
           }
 
           case 'git_commit': {
-            vscode.window.showInformationMessage(
-              `Git Commit: ${reference.target} (associated with project memory)`
-            );
+            if (!root) {
+              vscode.window.showWarningMessage(
+                'No active workspace root to resolve Git commit reference.'
+              );
+              return;
+            }
+
+            const commitResult = await fetchGitCommitDiff(reference.target, root);
+            if (!commitResult.success || !commitResult.content) {
+              vscode.window.showErrorMessage(
+                commitResult.error || `Unable to open commit '${reference.target}'.`
+              );
+              return;
+            }
+
+            try {
+              const doc = await vscode.workspace.openTextDocument({
+                content: commitResult.content,
+                language: 'diff',
+              });
+              await vscode.window.showTextDocument(doc, { preview: true });
+            } catch (err) {
+              vscode.window.showErrorMessage(
+                `Failed to display commit '${reference.target}': ${(err as Error).message}`
+              );
+            }
             break;
           }
 
