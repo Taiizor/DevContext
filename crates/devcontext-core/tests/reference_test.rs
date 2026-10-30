@@ -370,7 +370,7 @@ fn test_url_reference_validation_without_network() {
     let valid_urls = [
         "https://example.com/docs/api",
         "http://localhost:8080/metrics",
-        "https://github.com/DevContext/DevContext/pull/42",
+        "https://github.com/Taiizor/DevContext/pull/42",
         "git://github.com/repo.git",
     ];
 

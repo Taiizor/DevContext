@@ -39,7 +39,7 @@ DevContext brings that context back to where developers actually work:
 
 #### CLI
 Download pre-built standalone binaries for Windows, Linux, and macOS:
-- Release Page: `https://github.com/DevContext/DevContext/releases/tag/v0.1.0` `[PENDING PUBLICATION]`
+- Release Page: `https://github.com/Taiizor/DevContext/releases/tag/v0.1.0` `[PENDING PUBLICATION]`
 
 ```bash
 # Initialize DevContext in your project
@@ -56,9 +56,9 @@ devcontext search "sqlite"
 ```
 
 #### VS Code Extension
-Install from the Visual Studio Code Marketplace:
-- Marketplace URL: `https://marketplace.visualstudio.com/items?itemName=devcontext.devcontext` `[PENDING PUBLICATION]`
-- Or install via VSIX: `code --install-extension devcontext-0.1.0.vsix`
+Install from the Visual Studio Code Marketplace (listed as **DevContext by Taiizor**):
+- Marketplace URL: `https://marketplace.visualstudio.com/items?itemName=Taiizor.devcontext-memory` `[PENDING PUBLICATION]`
+- Or install via VSIX: `code --install-extension devcontext-memory-0.1.0.vsix`
 
 Features include native tree views for Notes, Decisions, and Timeline, live QuickPick search (`Ctrl+Alt+D S`), and click-to-open Git commit diffs.
 
@@ -67,6 +67,6 @@ Features include native tree views for Notes, Decisions, and Timeline, live Quic
 ### Open Source & Community
 
 DevContext is dual-licensed under the **MIT** and **Apache-2.0** licenses.
-- Source Code: [https://github.com/DevContext/DevContext](https://github.com/DevContext/DevContext)
+- Source Code: [https://github.com/Taiizor/DevContext](https://github.com/Taiizor/DevContext)
 - Documentation & Guides: [docs/user/quickstart-and-workflows.md](../user/quickstart-and-workflows.md)
 - Community Guidelines: [.github/SUPPORT.md](../../.github/SUPPORT.md)

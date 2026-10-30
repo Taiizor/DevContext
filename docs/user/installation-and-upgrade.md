@@ -32,7 +32,7 @@ devcontext --version
 ### Option B: Build from Source using Cargo
 If you have the Rust toolchain installed:
 ```bash
-git clone https://github.com/DevContext/DevContext.git
+git clone https://github.com/Taiizor/DevContext.git
 cd DevContext
 cargo install --path apps/cli
 ```
@@ -41,17 +41,23 @@ cargo install --path apps/cli
 
 ## 3. VS Code Extension Installation
 
+The canonical Visual Studio Code extension identifier is **`Taiizor.devcontext-memory`** (listed on the Visual Studio Marketplace as **DevContext by Taiizor**).
+
 ### Option A: Install from VSIX Package
-Download `devcontext-0.1.0.vsix` and install via terminal:
+Download `devcontext-memory-0.1.0.vsix` and install via terminal:
 ```bash
-code --install-extension devcontext-0.1.0.vsix
+code --install-extension devcontext-memory-0.1.0.vsix
 ```
 Or in VS Code:
 1. Open the **Extensions** view (`Ctrl+Shift+X` / `Cmd+Shift+X`).
 2. Click the `...` menu (Views and More Actions) in the top right.
 3. Select **Install from VSIX...** and choose the downloaded file.
 
-### Option B: Automatic Core Resolution
+### Option B: Visual Studio Marketplace (Planned)
+- Planned Marketplace Destination: `https://marketplace.visualstudio.com/items?itemName=Taiizor.devcontext-memory` `[PENDING PUBLICATION]`
+*(Note: Marketplace listing is pending public release and cannot be installed from Marketplace yet).*
+
+### Option C: Automatic Core Resolution
 Once installed, the extension locates the native binary in order:
 1. `devcontext.core.executablePath` setting (if set).
 2. Bundled platform binary included in the platform VSIX package.
@@ -59,7 +65,23 @@ Once installed, the extension locates the native binary in order:
 
 ---
 
-## 4. Upgrading DevContext
+## 4. Upgrading & Migrating DevContext
+
+### Migrating to `Taiizor.devcontext-memory`
+The official extension identifier is `Taiizor.devcontext-memory`. Note that `Taiizor.devcontext-memory` is a distinct VS Code extension identity from any previous development package or third-party identifier (`devcontext.devcontext` or `Taiizor.devcontext`). 
+
+VS Code does not automatically migrate extensions across different publisher or extension IDs. To migrate manually:
+1. Uninstall any older package:
+   ```bash
+   code --uninstall-extension devcontext.devcontext
+   # or if an earlier preview was installed:
+   code --uninstall-extension Taiizor.devcontext
+   ```
+2. Install the official `Taiizor.devcontext-memory` VSIX:
+   ```bash
+   code --install-extension devcontext-memory-0.1.0.vsix
+   ```
+3. Verify that existing DevContext project data remains intact: all project memory is stored directly in your workspace under `.devcontext/` and is completely independent of the extension publisher identity.
 
 ### Core Database Migrations
 DevContext uses forward-only, transactional SQLite database migrations:
@@ -76,4 +98,4 @@ DevContext uses forward-only, transactional SQLite database migrations:
 
 DevContext stores all project memory in a dedicated `.devcontext/` directory in each project root:
 - To uninstall from a project: Delete the `.devcontext/` directory. No global state, registry entries, or hidden user-profile caches remain.
-- To uninstall the extension: Run `code --uninstall-extension devcontext.devcontext`.
+- To uninstall the extension: Run `code --uninstall-extension Taiizor.devcontext-memory`.

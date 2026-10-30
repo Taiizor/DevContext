@@ -9,12 +9,12 @@ exports.run = async function() {
   console.log('[ExtensionHost] Starting Real Extension Host Verification...');
 
   // 1. Verify extension identity in VS Code extension registry
-  const ext = vscode.extensions.getExtension('devcontext.devcontext');
-  assert.ok(ext, 'Extension devcontext.devcontext must be present in VS Code extension registry');
-  assert.strictEqual(ext.id, 'devcontext.devcontext', 'Extension ID must match publisher.name');
-  assert.strictEqual(ext.packageJSON.name, 'devcontext', 'Manifest name must be devcontext');
-  assert.strictEqual(ext.packageJSON.publisher, 'devcontext', 'Manifest publisher must be devcontext');
-  assert.strictEqual(ext.packageJSON.displayName, 'DevContext', 'Manifest displayName must be DevContext');
+  const ext = vscode.extensions.getExtension('Taiizor.devcontext-memory');
+  assert.ok(ext, 'Extension Taiizor.devcontext-memory must be present in VS Code extension registry');
+  assert.strictEqual(ext.id, 'Taiizor.devcontext-memory', 'Extension ID must match publisher.name');
+  assert.strictEqual(ext.packageJSON.name, 'devcontext-memory', 'Manifest name must be devcontext-memory');
+  assert.strictEqual(ext.packageJSON.publisher, 'Taiizor', 'Manifest publisher must be Taiizor');
+  assert.strictEqual(ext.packageJSON.displayName, 'DevContext by Taiizor', 'Manifest displayName must be DevContext by Taiizor');
   console.log(`[ExtensionHost] Extension identity verified: ${ext.id} ("${ext.packageJSON.displayName}")`);
 
   // 2. Verify extension activation
@@ -129,7 +129,7 @@ exports.run = async function() {
       id: 'ref-u1',
       record_id: 'rec-1',
       ref_type: 'url',
-      target: 'https://github.com/DevContext/DevContext',
+      target: 'https://github.com/Taiizor/DevContext',
       created_at: new Date().toISOString(),
     });
 

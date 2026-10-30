@@ -53,11 +53,11 @@ To test your core binary connection, run **DevContext: Run Doctor Diagnostic** f
 
 ## Documentation & Support
 
-- [Installation & Upgrade Guide](https://github.com/DevContext/DevContext/blob/main/docs/user/installation-and-upgrade.md)
-- [Troubleshooting & Diagnostics](https://github.com/DevContext/DevContext/blob/main/docs/user/troubleshooting.md)
-- [Backup & Disaster Recovery](https://github.com/DevContext/DevContext/blob/main/docs/user/backup-and-recovery.md)
-- [Community Guidelines](https://github.com/DevContext/DevContext/blob/main/.github/SUPPORT.md)
-- [GitHub Repository](https://github.com/DevContext/DevContext)
+- [Installation & Upgrade Guide](https://github.com/Taiizor/DevContext/blob/develop/docs/user/installation-and-upgrade.md)
+- [Troubleshooting & Diagnostics](https://github.com/Taiizor/DevContext/blob/develop/docs/user/troubleshooting.md)
+- [Backup & Disaster Recovery](https://github.com/Taiizor/DevContext/blob/develop/docs/user/backup-and-recovery.md)
+- [Community Guidelines](https://github.com/Taiizor/DevContext/blob/develop/.github/SUPPORT.md)
+- [GitHub Repository](https://github.com/Taiizor/DevContext)
 
 ---
 

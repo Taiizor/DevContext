@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Public MVP Release:**
   - Initial public release of DevContext (Rust core/CLI and VS Code extension).
   - Standalone native binary builds for Windows x64, Linux x64, and macOS (x64 / ARM64).
-  - Production-ready VS Code extension package (`devcontext-0.1.0.vsix`).
+  - Production-ready VS Code extension package (`devcontext-memory-0.1.0.vsix`).
   - Shipped sample project dataset (`examples/sample-project/`) demonstrating notes, ADRs, milestones, logs, references, and search.
   - Comprehensive user documentation: Quickstart & Workflows, Installation & Upgrade, Troubleshooting, Backup & Recovery, and Privacy Architecture.
   - Public community and support guidelines (`.github/SUPPORT.md`) and refined issue templates with strict privacy warnings.

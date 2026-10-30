@@ -1,22 +1,22 @@
 {
-  "name": "devcontext",
-  "displayName": "DevContext",
+  "name": "devcontext-memory",
+  "displayName": "DevContext by Taiizor",
   "description": "Local-first project memory system for software development",
   "version": "0.1.0",
-  "publisher": "devcontext",
+  "publisher": "Taiizor",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DevContext/DevContext.git"
+    "url": "https://github.com/Taiizor/DevContext.git"
   },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Productivity",
     "Other"
   ],
   "keywords": [
+    "productivity",
     "project-memory",
     "adr",
     "architecture-decisions",
@@ -307,5 +307,6 @@
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^3.1.0",
     "typescript": "^5.5.4"
-  }
+  },
+  "icon": "media/icon.png"
 }
