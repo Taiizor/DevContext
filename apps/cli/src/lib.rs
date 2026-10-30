@@ -28,6 +28,9 @@ pub fn run(args: CliArgs) -> i32 {
         Some(Commands::Timeline(cmd)) => {
             commands::timeline::handle_timeline(args.project_dir, cmd, &renderer)
         }
+        Some(Commands::Search(cmd)) => {
+            commands::search::handle_search(args.project_dir, cmd, &renderer)
+        }
         None => {
             if args.json {
                 renderer.error(

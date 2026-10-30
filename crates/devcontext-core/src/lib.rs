@@ -6,6 +6,7 @@ pub mod domain;
 pub mod error;
 pub mod export;
 pub mod git;
+pub mod reference;
 pub mod search;
 pub mod storage;
 pub mod workspace;
@@ -13,7 +14,10 @@ pub mod workspace;
 pub use error::{CoreError, Result};
 pub use git::{
     GitAdapter, GitCommitInfo, TimelineEvent, TimelineEventType, TimelineFilter, TimelineService,
+    TimelineView,
 };
+pub use reference::{ReferenceResolutionStatus, ReferenceResolver, ResolvedReference};
+pub use search::{SearchFilter, SearchResult, SearchService};
 pub use workspace::WorkspaceManager;
 
 /// Returns the semantic version of the core engine.

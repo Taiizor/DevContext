@@ -3,6 +3,7 @@ use chrono::Utc;
 use rusqlite::{Connection, Transaction};
 
 pub mod m0001_initial;
+pub mod m0002_fts5_search;
 
 /// Represents a single versioned schema migration.
 pub trait Migration {
@@ -17,7 +18,10 @@ pub struct MigrationRunner;
 impl MigrationRunner {
     /// Returns all registered migrations in strict sequential order.
     pub fn all_migrations() -> Vec<Box<dyn Migration>> {
-        vec![Box::new(m0001_initial::Migration0001Initial)]
+        vec![
+            Box::new(m0001_initial::Migration0001Initial),
+            Box::new(m0002_fts5_search::Migration0002Fts5Search),
+        ]
     }
 
     /// Initializes the `schema_migrations` metadata table if not present.
@@ -120,9 +124,13 @@ mod tests {
         let mut conn = DbConnection::open_in_memory().unwrap();
         assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 0);
 
+        let total = MigrationRunner::all_migrations().len();
         let applied = MigrationRunner::run_pending(&mut conn).unwrap();
-        assert_eq!(applied, 1);
-        assert_eq!(MigrationRunner::current_version(&conn).unwrap(), 1);
+        assert_eq!(applied, total);
+        assert_eq!(
+            MigrationRunner::current_version(&conn).unwrap(),
+            total as i64
+        );
 
         // Subsequent runs should apply 0 migrations
         let reapplied = MigrationRunner::run_pending(&mut conn).unwrap();

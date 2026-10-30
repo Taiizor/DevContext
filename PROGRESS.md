@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 4 --- Git integration and timeline (Complete)
--   **Overall status:** Phase 4 complete; ready for Phase 5 approval
+-   **Current phase:** Phase 5 --- Search and references (Complete)
+-   **Overall status:** Phase 5 complete; ready for Phase 6 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Search and References (Pending Phase 5 approval)
+-   **Current milestone:** VS Code extension MVP (Pending Phase 6 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -31,8 +31,8 @@
   2\. Core domain and storage                 Complete      2026-10-30        SQLite WAL, schema v1 migrations, CRUD, backup/restore
   3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
   4\. Git integration and timeline            Complete      2026-10-30        Read-only Git adapter, ADR 0010, unified timeline CLI
-  5\. Search and references                   Not started   ---               Pending user approval to begin Phase 5
-  6\. VS Code extension MVP                   Not started   ---               
+  5\. Search and references                   Complete      2026-10-30        SQLite FTS5 (BM25, unicode61), ReferenceResolver, ADR 0011
+  6\. VS Code extension MVP                   Not started   ---               Pending user approval to begin Phase 6
   7\. Export/import and data safety           Not started   ---               
   8\. Quality and release readiness           Not started   ---               
   9\. Public MVP release                      Not started   ---               
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 4 complete. Awaiting user approval to proceed to Phase 5.
+-   Phase 5 complete. Awaiting user approval to proceed to Phase 6.
 
 ## Blockers and risks
 
@@ -172,20 +172,28 @@
 
 ## Phase 5 --- Search and references
 
--   [ ] Implement full-text indexing.
--   [ ] Index titles, bodies, tags, and selected metadata.
--   [ ] Implement snippets and ranking.
--   [ ] Add record type, status, tag, and date filters.
--   [ ] Implement file and folder references.
--   [ ] Implement commit and branch references.
--   [ ] Implement URL references.
--   [ ] Implement command references.
--   [ ] Implement unavailable-target states.
--   [ ] Add reindex command.
--   [ ] Add search performance tests.
--   [ ] Document search behavior.
+-   [x] Implement full-text indexing.
+-   [x] Index titles, bodies, tags, and selected metadata.
+-   [x] Implement snippets and ranking.
+-   [x] Add record type, status, tag, and date filters.
+-   [x] Implement file and folder references.
+-   [x] Implement commit and branch references.
+-   [x] Implement URL references.
+-   [x] Implement command references.
+-   [x] Implement unavailable-target states.
+-   [x] Add reindex command.
+-   [x] Add search performance tests.
+-   [x] Document search behavior.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- **SQLite FTS5 virtual table & migration:** Created migration `m0002_fts5_search.rs` registering unified `records_fts` table using `tokenize = 'unicode61 remove_diacritics 1'`. Automatic synchronization triggers maintain consistency across INSERT, UPDATE, soft-delete (`is_deleted = 1`), hard-delete, and restore operations.
+- **Search service & ranking:** Implemented `SearchService`, `SearchResult`, and `SearchFilter` with SQLite `bm25(records_fts, 5.0, 1.0, 2.0)` weighting (title 5x, tags 2x, body 1x). Contextual snippets generated with `snippet(records_fts, 1, '[match]', '[/match]', '...', 12)`.
+- **Query resilience:** Unbalanced quotes, wildcards, or invalid FTS5 operators trigger an automatic tokenized phrase fallback (`sanitize_fts5_query`) rather than surfacing raw SQLite syntax errors.
+- **Local-first reference resolution:** Implemented `ReferenceResolver` validating files, folders, commits, branches, records, commands, and symbols. Path traversal (`..` escaping project root) is explicitly rejected and marked `Invalid`. URLs are validated offline for syntax without triggering network connections. Missing targets cleanly evaluate to `Missing` without runtime errors.
+- **CLI search workflows:** Added `devcontext search <query>` with `--type`, `--limit`, `--reindex`, and `--json` support complying with ADR 0007 response envelope.
+- **ADR 0011 established:** Documented design and operational characteristics in `docs/decisions/0011-sqlite-fts5-search-and-reference-resolution.md`.
+- **Automated test suite:** 70 total Rust tests passing across the workspace (11 CLI + 59 Core), including 9 dedicated search tests (`search_test.rs`) verifying CRUD sync, soft-delete filtering, Unicode diacritic matching, Turkish characters, syntax safety, BM25 weighting, and reindex performance (<50ms for 100 records), 6 reference tests (`reference_test.rs`), and comprehensive CLI integration test (`cli_search_test.rs`).
+- **Code hygiene:** `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings. Bun TypeScript checks (`bun run typecheck` and `bun test`) pass cleanly.
 
 ## Phase 6 --- VS Code extension MVP
 
@@ -274,6 +282,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), BM25 ranking, ReferenceResolver, CLI search command, and comprehensive test suite. 70 tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.
   2026-10-30   Phase 2: Core Domain & Storage Engine      Implemented domain models, SQLite WAL engine, schema v1 migrations, backup/restore primitives, and 30 unit/integration tests. `cargo fmt`, `cargo clippy`, and `cargo test` passed with 0 warnings.

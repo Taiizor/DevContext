@@ -55,6 +55,28 @@ pub enum Commands {
 
     /// Display unified chronological development timeline
     Timeline(TimelineArgs),
+
+    /// Full-text search across notes, decisions, milestones, logs, and commands
+    Search(SearchArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SearchArgs {
+    /// Full-text search query string (optional when --reindex is specified)
+    #[arg(default_value = "")]
+    pub query: String,
+
+    /// Filter results by record type (note, decision, milestone, log, command)
+    #[arg(short = 't', long = "type")]
+    pub record_type: Option<String>,
+
+    /// Maximum number of search results to return
+    #[arg(short, long, default_value = "20")]
+    pub limit: usize,
+
+    /// Rebuild the full-text search index from active database records
+    #[arg(long)]
+    pub reindex: bool,
 }
 
 #[derive(clap::Args, Debug)]

@@ -26,11 +26,12 @@ fn test_migration_lifecycle_and_idempotence() {
     let initial_version = MigrationRunner::current_version(&conn).unwrap();
     assert_eq!(initial_version, 0);
 
+    let total_migrations = MigrationRunner::all_migrations().len();
     let applied = MigrationRunner::run_pending(&mut conn).unwrap();
-    assert_eq!(applied, 1);
+    assert_eq!(applied, total_migrations);
 
     let new_version = MigrationRunner::current_version(&conn).unwrap();
-    assert_eq!(new_version, 1);
+    assert_eq!(new_version, total_migrations as i64);
 
     let re_applied = MigrationRunner::run_pending(&mut conn).unwrap();
     assert_eq!(re_applied, 0);

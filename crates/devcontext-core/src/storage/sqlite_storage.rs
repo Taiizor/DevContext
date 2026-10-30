@@ -198,6 +198,24 @@ impl SqliteStorage {
         )
     }
 
+    /// Fetches the base record envelope by ID.
+    pub fn get_record_envelope(&self, id: Uuid) -> Result<Option<Record>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CoreError::Concurrency(e.to_string()))?;
+        let mut stmt = conn.prepare(
+            "SELECT id, project_id, record_type, title, created_at, updated_at, tags, is_deleted
+             FROM records WHERE id = ?1;",
+        )?;
+        let mut rows = stmt.query(params![id.to_string()])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(Self::read_record_envelope(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     // ==========================================
     // Note Operations
     // ==========================================
@@ -850,5 +868,155 @@ impl SqliteStorage {
             params![id.to_string()],
         )?;
         Ok(affected > 0)
+    }
+
+    // ==========================================
+    // Full-Text Search (FTS5) Query Operations
+    // ==========================================
+
+    #[allow(clippy::type_complexity)]
+    pub fn search_raw(
+        &self,
+        project_id: Uuid,
+        match_query: &str,
+        record_type: Option<RecordType>,
+        limit: usize,
+    ) -> Result<
+        Vec<(
+            Uuid,
+            RecordType,
+            String,
+            String,
+            f64,
+            String,
+            String,
+            Vec<String>,
+        )>,
+    > {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| CoreError::Concurrency(e.to_string()))?;
+
+        let sql = if record_type.is_some() {
+            "SELECT
+                f.record_id,
+                f.record_type,
+                f.title,
+                snippet(records_fts, -1, '[match]', '[/match]', '...', 16) AS snippet,
+                bm25(records_fts, 0.0, 0.0, 0.0, 5.0, 1.0, 2.0) AS score,
+                r.created_at,
+                r.updated_at,
+                r.tags
+            FROM records_fts f
+            JOIN records r ON f.record_id = r.id
+            WHERE records_fts MATCH ?1
+              AND f.project_id = ?2
+              AND r.is_deleted = 0
+              AND f.record_type = ?3
+            ORDER BY score ASC, r.created_at DESC, f.record_id ASC
+            LIMIT ?4;"
+        } else {
+            "SELECT
+                f.record_id,
+                f.record_type,
+                f.title,
+                snippet(records_fts, -1, '[match]', '[/match]', '...', 16) AS snippet,
+                bm25(records_fts, 0.0, 0.0, 0.0, 5.0, 1.0, 2.0) AS score,
+                r.created_at,
+                r.updated_at,
+                r.tags
+            FROM records_fts f
+            JOIN records r ON f.record_id = r.id
+            WHERE records_fts MATCH ?1
+              AND f.project_id = ?2
+              AND r.is_deleted = 0
+            ORDER BY score ASC, r.created_at DESC, f.record_id ASC
+            LIMIT ?3;"
+        };
+
+        let mut stmt = conn.prepare(sql)?;
+        let mut rows = if let Some(rt) = record_type {
+            stmt.query(params![
+                match_query,
+                project_id.to_string(),
+                rt.to_string(),
+                limit as i64
+            ])?
+        } else {
+            stmt.query(params![match_query, project_id.to_string(), limit as i64])?
+        };
+
+        let mut results = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id_str: String = row.get(0)?;
+            let rec_type_str: String = row.get(1)?;
+            let title: String = row.get(2)?;
+            let snippet: String = row.get(3)?;
+            let score: f64 = row.get(4)?;
+            let created_at: String = row.get(5)?;
+            let updated_at: String = row.get(6)?;
+            let tags_json: String = row.get(7)?;
+
+            let id = Uuid::parse_str(&id_str)
+                .map_err(|e| CoreError::Integrity(format!("Invalid UUID in search: {}", e)))?;
+            let rec_type = RecordType::from_str(&rec_type_str)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+
+            results.push((
+                id, rec_type, title, snippet, score, created_at, updated_at, tags,
+            ));
+        }
+
+        Ok(results)
+    }
+
+    /// Rebuilds the entire FTS5 search index from all active (non-deleted) database records.
+    pub fn rebuild_search_index(&self) -> Result<usize> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| CoreError::Concurrency(e.to_string()))?;
+        let tx = conn.transaction()?;
+
+        // Clear existing virtual table
+        tx.execute("DELETE FROM records_fts;", [])?;
+
+        let mut count = 0;
+        count += tx.execute(
+            "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
+             SELECT r.id, r.project_id, r.record_type, r.title, n.content_markdown, r.tags
+             FROM records r JOIN notes n ON r.id = n.record_id WHERE r.is_deleted = 0;",
+            [],
+        )?;
+        count += tx.execute(
+            "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
+             SELECT r.id, r.project_id, r.record_type, r.title,
+                    d.context || ' ' || d.decision || ' ' || d.consequences || ' ' || COALESCE(d.alternatives_considered, ''),
+                    r.tags
+             FROM records r JOIN decisions d ON r.id = d.record_id WHERE r.is_deleted = 0;",
+            [],
+        )?;
+        count += tx.execute(
+            "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
+             SELECT r.id, r.project_id, r.record_type, r.title, COALESCE(m.description, ''), r.tags
+             FROM records r JOIN milestones m ON r.id = m.record_id WHERE r.is_deleted = 0;",
+            [],
+        )?;
+        count += tx.execute(
+            "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
+             SELECT r.id, r.project_id, r.record_type, r.title, l.summary || ' ' || COALESCE(l.details, ''), r.tags
+             FROM records r JOIN log_entries l ON r.id = l.record_id WHERE r.is_deleted = 0;",
+            [],
+        )?;
+        count += tx.execute(
+            "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
+             SELECT r.id, r.project_id, r.record_type, r.title, s.command_text || ' ' || COALESCE(s.explanation, ''), r.tags
+             FROM records r JOIN saved_commands s ON r.id = s.record_id WHERE r.is_deleted = 0;",
+            [],
+        )?;
+
+        tx.commit()?;
+        Ok(count)
     }
 }

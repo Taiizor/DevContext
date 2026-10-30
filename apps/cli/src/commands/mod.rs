@@ -4,5 +4,6 @@ pub mod init;
 pub mod log;
 pub mod milestone;
 pub mod note;
+pub mod search;
 pub mod status;
 pub mod timeline;

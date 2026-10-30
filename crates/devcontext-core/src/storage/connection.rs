@@ -73,5 +73,9 @@ mod tests {
         DbConnection::verify_foreign_keys(&conn).unwrap();
         let mode = DbConnection::get_journal_mode(&conn).unwrap();
         assert_eq!(mode, "memory");
+
+        // Verify FTS5 support
+        conn.execute("CREATE VIRTUAL TABLE test_fts USING fts5(content);", [])
+            .expect("SQLite FTS5 must be supported");
     }
 }
