@@ -159,14 +159,16 @@
 
 **Verification evidence:**
 - Implemented dedicated, read-only `GitAdapter` in `devcontext-core` using `std::process::Command` (ADR 0010) with zero external C/crate dependencies.
-- Implemented unit-separator (`\x1f`) parser for bounded commit history, branch/detached HEAD detection, and commit existence verification.
-- Implemented `TimelineService` assembling on-the-fly ephemeral timelines combining Git commits, notes, decisions, milestones, and development logs.
-- Added tie-breaking stable sorting (identical timestamps deterministic ordering).
-- Added `devcontext timeline` CLI command supporting `--limit`, `--type`, `--since`, `--until`, and `--json`.
-- Added comprehensive integration tests covering normal repos, 0-commit repos, detached HEAD, non-Git projects, read-only status preservation, and commit references.
-- 48 total workspace tests passing: `cargo test` exits with code 0.
-- Formatting and linting: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
-- TypeScript checks: `bun run typecheck` and `bun test` pass cleanly.
+- **Strict offline execution:** Configured all Git subprocesses with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, and `GIT_TERMINAL_PROMPT=0` to guarantee offline execution, zero network requests in partial/blobless clones, and no lock file acquisition.
+- **Missing executable resilience:** Handled `ErrorKind::NotFound` gracefully without crashes; timeline assembly continues serving DevContext records when Git is not installed or unavailable.
+- **Shallow clone support:** Verified metadata retrieval in shallow clones (`git clone --depth 1`) without attempting to fetch parent objects.
+- **Bounded retrieval & large repo safety:** Invocations pass `-n <limit>` directly down to `git log`; `TimelineService` enforces an upper safety retrieval cap (`DEFAULT_MAX_COMMITS_UNBOUNDED = 1000`) when limits are omitted, preventing unbounded memory loading.
+- **Structured delimiter parsing:** Uses ASCII record separator (`\x1e`, 0x1E) and unit separator (`\x1f`, 0x1F) to parse commit messages with multiline content, quotes, commas, brackets, and UTF-8 emojis (`🚀`, `✨`, `⚡`) deterministically. Empty commit messages fall back to short hash, and atypical authors (missing email/name) are handled safely.
+- **Predictable date filtering:** Implemented timestamp and date-only parsing in `TimelineFilter` where `--until=YYYY-MM-DD` covers the entire calendar day up to 23:59:59.999Z.
+- **ADR 0010 update:** Documented technical guarantees, architecture, and exact limitations in `docs/decisions/0010-process-based-read-only-git-adapter.md`.
+- **52 total workspace tests passing:** `cargo test --workspace` passes cleanly with 0 failures across unit and integration tests.
+- **Code hygiene:** `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
+- **TypeScript checks:** `bun run typecheck` and `bun test` pass cleanly.
 
 ## Phase 5 --- Search and references
 
