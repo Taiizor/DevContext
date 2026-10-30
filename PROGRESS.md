@@ -32,7 +32,7 @@
   3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
   4\. Git integration and timeline            Complete      2026-10-30        Read-only Git adapter, ADR 0010, unified timeline CLI
   5\. Search and references                   Complete      2026-10-30        SQLite FTS5 (BM25, unicode61), ReferenceResolver, ADR 0011
-  6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 52 TS tests
+  6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 58 TS tests
   7\. Export/import and data safety           Not started   ---               Pending user approval to begin Phase 7
   8\. Quality and release readiness           Not started   ---               
   9\. Public MVP release                      Not started   ---               
@@ -237,9 +237,9 @@
   - References: `openReference` safely opening line ranges, workspace folders, external URLs, or Git commit hashes; `linkFileToNote` linking active files.
   - Export/Import: `devcontext.export` and `devcontext.import` presenting detailed preview modals (record counts, privacy redaction summary) and requiring explicit user confirmation before selecting folders or executing.
   - Doctor: `devcontext.doctor` outputting system and storage diagnostics directly to a dedicated OutputChannel.
-- **Automated Test Suites (52 Bun tests + Real Extension Host + 72 Rust tests):**
-  - Bun test suite (`cd apps/vscode-extension && bun test`): 52 passing tests across 8 suites (`client_and_ipc.test.ts`, `commands_and_workflows.test.ts`, `extension.test.ts`, `locator_and_handshake.test.ts`, `views_and_providers.test.ts`, `workspace_and_isolation.test.ts`, `real_core_integration.test.ts`, `real_workflow_e2e.test.ts`).
-  - Real Extension Host test suite (`bun run test:integration` via `@vscode/test-electron`): Launched local VS Code Extension Development Host, verified extension activation, all 19 commands registration, tree view resolution, and clean deactivation.
+- **Automated Test Suites (58 Bun tests + Real Extension Host + 72 Rust tests):**
+  - Bun test suite (`cd apps/vscode-extension && bun test`): 58 passing tests across 9 suites (`client_and_ipc.test.ts`, `commands_and_workflows.test.ts`, `export_import_preview.test.ts`, `extension.test.ts`, `locator_and_handshake.test.ts`, `views_and_providers.test.ts`, `workspace_and_isolation.test.ts`, `real_core_integration.test.ts`, `real_workflow_e2e.test.ts`).
+  - Real Extension Host test suite (`bun run test:integration` via `@vscode/test-electron`): Launched local VS Code Extension Development Host, verified extension identity (`devcontext.devcontext`), all 24 commands registered and active, reference actions (file with anchor, external URL, git commit, missing target), tree view resolution, and clean deactivation.
   - TypeScript typecheck (`bun run typecheck`): 0 errors (`tsc --noEmit`).
   - Rust workspace test suite (`cargo test --workspace`): 72 passing tests across all crates (61 core + 11 CLI).
   - Rust formatting & clippy (`cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`): 0 warnings.
@@ -309,7 +309,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
-  2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions, status bar, and test suite). Real Extension Host verification + 52 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
+  2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions, status bar, and test suite). Real Extension Host verification + 58 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
   2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), Turkish search normalization, BM25 ranking, ReferenceResolver with canonical traversal security, CLI search command, and test suite. 72 Rust tests + 2 TS tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.
