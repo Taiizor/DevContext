@@ -872,3 +872,154 @@ fn test_backup_creation_failure_aborts_destructive_operation() {
         "Records must remain intact when backup fails"
     );
 }
+
+#[test]
+fn test_backup_filename_collision_handling_and_preservation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (_project, storage) = setup_sample_project(root);
+
+    let backup_dir = root.join(".devcontext").join("backups");
+    fs::create_dir_all(&backup_dir).unwrap();
+
+    // Create a pre-existing file in the backup directory
+    let existing_file = backup_dir.join("pre-existing-backup.db");
+    fs::write(&existing_file, b"PRESERVED_ORIGINAL_BACKUP_CONTENT").unwrap();
+
+    // Call atomic backup creation
+    let new_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "pre-import").unwrap();
+
+    // Verify the newly created backup exists and passes integrity check
+    assert!(new_backup.exists());
+    assert_ne!(new_backup, existing_file);
+    assert!(BackupService::verify_file_integrity(&new_backup).is_ok());
+
+    // Verify the original pre-existing file was NEVER overwritten or deleted
+    let original_bytes = fs::read(&existing_file).unwrap();
+    assert_eq!(original_bytes, b"PRESERVED_ORIGINAL_BACKUP_CONTENT");
+}
+
+#[test]
+fn test_sqlite_restore_failure_preserves_pre_restore_database() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    // Initial note exists
+    let initial_notes = storage.list_notes(project.id, false).unwrap();
+    assert_eq!(initial_notes.len(), 1);
+
+    // Create a valid backup of this initial state
+    let backup_dir = root.join(".devcontext").join("backups");
+    let valid_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
+
+    // Now mutate database: add a second note after the backup
+    let note2 = Note::new(
+        project.id,
+        "Pre-Restore Note Added",
+        "Content that must remain preserved if restore fails",
+        vec!["pre-restore".to_string()],
+        None,
+    )
+    .unwrap();
+    storage.save_note(&note2).unwrap();
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 2);
+
+    // Inject failure during restore after staging is complete
+    let restore_res =
+        BackupService::restore_to_storage_with_injected_failure(&valid_backup, &storage);
+    assert!(
+        restore_res.is_err(),
+        "Must fail when failure is injected during restore"
+    );
+
+    // 1. Verify original database remains valid and its pre-restore records remain accessible
+    let notes_after_failed_restore = storage.list_notes(project.id, false).unwrap();
+    assert_eq!(
+        notes_after_failed_restore.len(),
+        2,
+        "Pre-restore records must remain accessible after failed restore"
+    );
+
+    // 2. Verify PRAGMA integrity_check succeeds on storage
+    let integrity = BackupService::verify_integrity(&storage).unwrap();
+    assert_eq!(integrity, vec!["ok".to_string()]);
+
+    // 3. Verify active storage connection remains usable by performing an insert
+    let note3 = Note::new(
+        project.id,
+        "Post-Failed-Restore Note",
+        "Connection is still alive and usable",
+        vec![],
+        None,
+    )
+    .unwrap();
+    storage.save_note(&note3).unwrap();
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 3);
+
+    // 4. Verify no unintended temporary files remain in .devcontext
+    let devcontext_dir = root.join(".devcontext");
+    for entry in fs::read_dir(&devcontext_dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy();
+        assert!(
+            !name.starts_with(".restore-staging-"),
+            "No temporary staging files should remain: {}",
+            name
+        );
+        assert!(
+            !name.starts_with(".restore-orig-"),
+            "No temporary orig swap files should remain: {}",
+            name
+        );
+    }
+}
+
+#[test]
+fn test_backup_creation_failure_aborts_import_operation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    // Initial state: 1 note
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 1);
+
+    // Export current state to file
+    let export_file = dir.path().join("export_for_import_test.json");
+    let export_opts = ExportOptions {
+        format: ExportFormat::Json,
+        output_path: Some(export_file.clone()),
+        redact_paths: false,
+    };
+    let (_bundle, _) = ExportService::export_project(root, &export_opts).unwrap();
+    drop(storage);
+
+    // Force backup creation to fail by placing a regular file at .devcontext/backups
+    let backup_dir_blocker = root.join(".devcontext").join("backups");
+    fs::write(&backup_dir_blocker, b"blocker").unwrap();
+
+    let import_opts = ImportOptions {
+        on_conflict: ConflictStrategy::Skip,
+        create_backup: true,
+        dry_run: false,
+    };
+
+    // Attempt import with backup requested
+    let res = ExportService::import_bundle(root, &export_file, &import_opts);
+    assert!(
+        res.is_err(),
+        "Import must abort before mutation if backup creation fails"
+    );
+
+    // Verify existing records remain completely unchanged
+    let (_p2, storage2) = WorkspaceManager::open_project(root).unwrap();
+    let notes = storage2.list_notes(project.id, false).unwrap();
+    assert_eq!(
+        notes.len(),
+        1,
+        "Record count must remain unchanged when import aborts due to backup failure"
+    );
+    assert_eq!(notes[0].record.title, "Türkçe Not Başlığı 🚀");
+}

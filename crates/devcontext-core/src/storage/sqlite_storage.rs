@@ -15,15 +15,18 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct SqliteStorage {
     conn: Arc<Mutex<Connection>>,
+    db_path: Option<std::path::PathBuf>,
 }
 
 impl SqliteStorage {
     /// Opens an SQLite database file at `path`, configures PRAGMAs, and applies migrations.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let mut conn = DbConnection::open(path)?;
+        let p = path.as_ref().to_path_buf();
+        let mut conn = DbConnection::open(&p)?;
         MigrationRunner::run_pending(&mut conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            db_path: Some(p),
         })
     }
 
@@ -33,7 +36,13 @@ impl SqliteStorage {
         MigrationRunner::run_pending(&mut conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            db_path: None,
         })
+    }
+
+    /// Returns the filesystem path to the underlying SQLite database file, if on-disk.
+    pub fn db_path(&self) -> Option<&Path> {
+        self.db_path.as_deref()
     }
 
     /// Executes a closure within an exclusive SQLite transaction.

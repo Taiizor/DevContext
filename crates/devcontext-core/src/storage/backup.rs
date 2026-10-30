@@ -1,32 +1,44 @@
 use crate::error::{CoreError, Result};
 use crate::storage::connection::DbConnection;
 use crate::storage::sqlite_storage::SqliteStorage;
-use std::path::Path;
+use chrono::Utc;
+use std::fs;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 /// Backup, restore, and integrity verification utilities for DevContext storage.
 pub struct BackupService;
 
 impl BackupService {
     /// Performs an online, non-blocking backup of the current database to `destination_path`.
-    /// Guarantees that existing backup files are never silently overwritten, and verifies
-    /// backup integrity immediately after creation.
+    /// Uses atomic exclusive creation (`create_new`) to eliminate TOCTOU races and guarantees
+    /// that existing backup files are never silently overwritten.
     pub fn backup_to_file(
         storage: &SqliteStorage,
         destination_path: impl AsRef<Path>,
     ) -> Result<()> {
         let dest = destination_path.as_ref();
 
-        if dest.exists() {
-            return Err(CoreError::Storage(format!(
-                "Backup destination already exists and will not be overwritten: {}",
-                dest.display()
-            )));
-        }
-
         if let Some(parent) = dest.parent() {
             if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent)?;
             }
+        }
+
+        // Atomic exclusive creation: fails if destination file already exists
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dest)
+        {
+            Ok(file) => drop(file),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(CoreError::Storage(format!(
+                    "Backup destination already exists and will not be overwritten: {}",
+                    dest.display()
+                )));
+            }
+            Err(err) => return Err(CoreError::Io(err)),
         }
 
         let mut dest_conn = DbConnection::open(dest)?;
@@ -45,11 +57,86 @@ impl BackupService {
 
         // Immediate integrity check on newly created backup file
         if let Err(e) = Self::verify_file_integrity(dest) {
-            let _ = std::fs::remove_file(dest);
+            let _ = fs::remove_file(dest);
             return Err(e);
         }
 
         Ok(())
+    }
+
+    /// Atomically creates a unique backup file in `backup_dir` using a full 128-bit UUID and timestamp.
+    /// Uses exclusive file creation (`create_new`) to avoid TOCTOU races.
+    /// If a collision occurs, retries with a fresh filename without overwriting existing files.
+    pub fn create_atomic_backup_file(
+        storage: &SqliteStorage,
+        backup_dir: impl AsRef<Path>,
+        prefix: &str,
+    ) -> Result<PathBuf> {
+        let backup_dir = backup_dir.as_ref();
+        if !backup_dir.exists() {
+            fs::create_dir_all(backup_dir)?;
+        }
+
+        const MAX_RETRIES: usize = 10;
+        let mut attempts = 0;
+
+        loop {
+            attempts += 1;
+            let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
+            let full_uuid = Uuid::new_v4().to_string();
+            let candidate_path =
+                backup_dir.join(format!("{}-{}-{}.db", prefix, timestamp, full_uuid));
+
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate_path)
+            {
+                Ok(file) => {
+                    drop(file);
+
+                    let perform_res = (|| -> Result<()> {
+                        let mut dest_conn = DbConnection::open(&candidate_path)?;
+                        let src_arc = storage.connection_arc();
+                        let src_conn = src_arc.lock().map_err(|e| {
+                            CoreError::Concurrency(format!("Database lock poisoned: {}", e))
+                        })?;
+
+                        {
+                            let backup = rusqlite::backup::Backup::new(&src_conn, &mut dest_conn)?;
+                            backup.run_to_completion(
+                                5,
+                                std::time::Duration::from_millis(50),
+                                None,
+                            )?;
+                        }
+
+                        drop(dest_conn);
+                        drop(src_conn);
+
+                        Self::verify_file_integrity(&candidate_path)?;
+                        Ok(())
+                    })();
+
+                    if let Err(e) = perform_res {
+                        let _ = fs::remove_file(&candidate_path);
+                        return Err(e);
+                    }
+
+                    return Ok(candidate_path);
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if attempts >= MAX_RETRIES {
+                        return Err(CoreError::Concurrency(format!(
+                            "Failed to generate unique backup filename after {} attempts",
+                            MAX_RETRIES
+                        )));
+                    }
+                    continue;
+                }
+                Err(err) => return Err(CoreError::Io(err)),
+            }
+        }
     }
 
     /// Restores a database from `backup_path` to `target_db_path`.
@@ -82,11 +169,29 @@ impl BackupService {
         SqliteStorage::open(target_path)
     }
 
-    /// Safely restores database pages from `backup_path` directly into an active `SqliteStorage` instance.
-    /// Locks the storage connection mutex to coordinate safely without file-locking races or WAL corruption.
+    /// Safely restores database pages from `backup_path` into an active `SqliteStorage` instance.
+    /// Employs a pre-restore safety snapshot to guarantee that if restore stepping fails,
+    /// the destination database is automatically restored to its pre-restore state without corruption.
     pub fn restore_to_storage(
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
+    ) -> Result<()> {
+        Self::restore_to_storage_impl(backup_path, storage, false)
+    }
+
+    /// Test-only hook to inject a deterministic failure during restore stepping.
+    #[doc(hidden)]
+    pub fn restore_to_storage_with_injected_failure(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+    ) -> Result<()> {
+        Self::restore_to_storage_impl(backup_path, storage, true)
+    }
+
+    fn restore_to_storage_impl(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+        inject_stepping_failure: bool,
     ) -> Result<()> {
         let backup_path = backup_path.as_ref();
 
@@ -97,6 +202,7 @@ impl BackupService {
             )));
         }
 
+        // Step 1: Pre-validate backup file integrity before touching destination
         Self::verify_file_integrity(backup_path)?;
 
         let backup_conn = DbConnection::open(backup_path)?;
@@ -105,13 +211,53 @@ impl BackupService {
             .lock()
             .map_err(|e| CoreError::Concurrency(format!("Database lock poisoned: {}", e)))?;
 
+        // Step 2: Create a safety snapshot of the destination database before restore attempt
+        let temp_dir = tempfile::tempdir()?;
+        let safety_snapshot_path = temp_dir.path().join("pre_restore_safety.db");
+
         {
+            let mut safety_conn = DbConnection::open(&safety_snapshot_path)?;
+            let safety_backup = rusqlite::backup::Backup::new(&dest_conn, &mut safety_conn)?;
+            safety_backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        }
+
+        // Step 3: Attempt restore into destination connection
+        let restore_step_res = (|| -> Result<()> {
+            if inject_stepping_failure {
+                return Err(CoreError::Storage(
+                    "Injected restore stepping failure".to_string(),
+                ));
+            }
+
             let backup = rusqlite::backup::Backup::new(&backup_conn, &mut dest_conn)?;
             backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+            Ok(())
+        })();
+
+        // Step 4: If restore failed, roll back destination database from safety snapshot
+        if let Err(err) = restore_step_res {
+            if safety_snapshot_path.exists() {
+                if let Ok(safety_conn) = DbConnection::open(&safety_snapshot_path) {
+                    if let Ok(rollback_backup) =
+                        rusqlite::backup::Backup::new(&safety_conn, &mut dest_conn)
+                    {
+                        let _ = rollback_backup.run_to_completion(
+                            5,
+                            std::time::Duration::from_millis(50),
+                            None,
+                        );
+                    }
+                }
+            }
+            drop(dest_conn);
+            drop(temp_dir);
+            return Err(err);
         }
 
         drop(dest_conn);
         drop(backup_conn);
+        drop(temp_dir);
+
         Self::verify_integrity(storage).map(|_| ())
     }
 

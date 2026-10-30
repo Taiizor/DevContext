@@ -477,14 +477,8 @@ impl ExportService {
         // Pre-import backup
         let backup_path_str = if options.create_backup {
             let backup_dir = project_root.join(".devcontext").join("backups");
-            fs::create_dir_all(&backup_dir)?;
-            let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
-            let backup_file = backup_dir.join(format!(
-                "pre-import-{}-{}.db",
-                timestamp,
-                &Uuid::new_v4().to_string()[..8]
-            ));
-            BackupService::backup_to_file(&storage, &backup_file)?;
+            let backup_file =
+                BackupService::create_atomic_backup_file(&storage, &backup_dir, "pre-import")?;
             Some(backup_file.to_string_lossy().to_string())
         } else {
             None
@@ -776,14 +770,8 @@ impl ExportService {
 
         let backup_path = if create_backup {
             let backup_dir = project_root.join(".devcontext").join("backups");
-            fs::create_dir_all(&backup_dir)?;
-            let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
-            let backup_file = backup_dir.join(format!(
-                "pre-delete-{}-{}.db",
-                timestamp,
-                &Uuid::new_v4().to_string()[..8]
-            ));
-            BackupService::backup_to_file(&storage, &backup_file)?;
+            let backup_file =
+                BackupService::create_atomic_backup_file(&storage, &backup_dir, "pre-delete")?;
             Some(backup_file.to_string_lossy().to_string())
         } else {
             None
