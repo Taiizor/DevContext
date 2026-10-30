@@ -17,7 +17,18 @@ DevContext consists of a standalone native CLI binary (`devcontext`) and a VS Co
 
 ## 2. CLI Installation
 
-### Option A: Pre-built Binary
+### Option A: Install via Cargo (crates.io)
+If you have the Rust toolchain installed, install the latest release directly from crates.io:
+```bash
+cargo install devcontext-cli
+```
+This builds and installs the standalone `devcontext` binary to your Cargo binary path (e.g., `~/.cargo/bin`). Verify with:
+```bash
+devcontext --version
+# Output: devcontext 0.1.0
+```
+
+### Option B: Pre-built Binary
 Download the pre-compiled standalone binary for your architecture from the release page:
 - `devcontext-windows-x64.zip` -> `devcontext.exe`
 - `devcontext-linux-x64.tar.gz` -> `devcontext`
@@ -29,8 +40,8 @@ devcontext --version
 # Output: devcontext 0.1.0
 ```
 
-### Option B: Build from Source using Cargo
-If you have the Rust toolchain installed:
+### Option C: Build from Source using Cargo
+Build directly from repository source:
 ```bash
 git clone https://github.com/Taiizor/DevContext.git
 cd DevContext
