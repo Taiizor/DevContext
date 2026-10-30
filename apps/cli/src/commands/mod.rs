@@ -5,3 +5,4 @@ pub mod log;
 pub mod milestone;
 pub mod note;
 pub mod status;
+pub mod timeline;

@@ -52,6 +52,28 @@ pub enum Commands {
     /// Manage development log entries
     #[command(subcommand)]
     Log(LogCommands),
+
+    /// Display unified chronological development timeline
+    Timeline(TimelineArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct TimelineArgs {
+    /// Maximum number of timeline events to display
+    #[arg(short, long, default_value = "50")]
+    pub limit: usize,
+
+    /// Filter events by type (commit, note, decision, milestone, log)
+    #[arg(short = 't', long = "type")]
+    pub event_type: Option<String>,
+
+    /// Filter events occurring on or after date (ISO-8601 string)
+    #[arg(long)]
+    pub since: Option<String>,
+
+    /// Filter events occurring on or before date (ISO-8601 string)
+    #[arg(long)]
+    pub until: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

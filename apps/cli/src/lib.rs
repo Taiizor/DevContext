@@ -25,6 +25,9 @@ pub fn run(args: CliArgs) -> i32 {
             commands::milestone::handle_milestone(args.project_dir, cmd, &renderer)
         }
         Some(Commands::Log(cmd)) => commands::log::handle_log(args.project_dir, cmd, &renderer),
+        Some(Commands::Timeline(cmd)) => {
+            commands::timeline::handle_timeline(args.project_dir, cmd, &renderer)
+        }
         None => {
             if args.json {
                 renderer.error(

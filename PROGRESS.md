@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 3 --- CLI MVP (Complete)
--   **Overall status:** Phase 3 complete; ready for Phase 4 approval
+-   **Current phase:** Phase 4 --- Git integration and timeline (Complete)
+-   **Overall status:** Phase 4 complete; ready for Phase 5 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Git Integration and Timeline (Pending Phase 4 approval)
+-   **Current milestone:** Search and References (Pending Phase 5 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -30,8 +30,8 @@
   1\. Repository and engineering foundation   Complete      2026-10-30        Workspace layout, Cargo, Bun/TS, CI, and test suite
   2\. Core domain and storage                 Complete      2026-10-30        SQLite WAL, schema v1 migrations, CRUD, backup/restore
   3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
-  4\. Git integration and timeline            Not started   ---               Pending user approval to begin Phase 4
-  5\. Search and references                   Not started   ---               
+  4\. Git integration and timeline            Complete      2026-10-30        Read-only Git adapter, ADR 0010, unified timeline CLI
+  5\. Search and references                   Not started   ---               Pending user approval to begin Phase 5
   6\. VS Code extension MVP                   Not started   ---               
   7\. Export/import and data safety           Not started   ---               
   8\. Quality and release readiness           Not started   ---               
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 3 complete. Awaiting user approval to proceed to Phase 4.
+-   Phase 4 complete. Awaiting user approval to proceed to Phase 5.
 
 ## Blockers and risks
 
@@ -139,30 +139,34 @@
 -   [x] CLI integration tests and command documentation.
 
 **Verification evidence:**
-- Implemented `WorkspaceManager` in `devcontext-core` providing upward directory discovery, project initialization, and `.git/info/exclude` configuration.
-- Implemented thin CLI architecture in `apps/cli` with subcommands: `init`, `status`, `doctor`, `note` (add/list/show/edit/delete), `decision` (add/list/show/update), `milestone` (add/list), and `log` (add/list).
-- Output rendered in human-friendly terminal format by default and machine-readable JSON via `--json` conforming to ADR 0007 (`CliEnvelope`).
-- Added comprehensive integration tests in `apps/cli/tests/` (9 tests covering full CLI workflows, error handling, nested directory traversal, non-English unicode support, JSON validity, and project isolation).
-- 41 total workspace tests passing: `cargo test` exits with code 0.
-- Formatting and linting: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
-- TypeScript checks: `bun run typecheck` and `bun test` pass cleanly.
+- Implemented `WorkspaceManager` and thin CLI subcommands.
+- Tested nested directory traversal, non-English unicode support, JSON validity, and project isolation.
 
 ## Phase 4 --- Git integration and timeline
 
--   [ ] Detect Git repository root.
--   [ ] Read current branch and HEAD.
--   [ ] Read bounded commit metadata.
--   [ ] Support configurable history depth.
--   [ ] Link records to commits manually.
--   [ ] Link current HEAD to a record.
--   [ ] Assemble combined timeline.
--   [ ] Distinguish Git events from authored records.
--   [ ] Handle shallow clones, detached HEAD, no Git, and empty
+-   [x] Detect Git repository root.
+-   [x] Read current branch and HEAD.
+-   [x] Read bounded commit metadata.
+-   [x] Support configurable history depth.
+-   [x] Link records to commits manually.
+-   [x] Link current HEAD to a record.
+-   [x] Assemble combined timeline.
+-   [x] Distinguish Git events from authored records.
+-   [x] Handle shallow clones, detached HEAD, no Git, and empty
     repositories.
--   [ ] Keep Git integration read-only.
--   [ ] Add Git fixture tests.
+-   [x] Keep Git integration read-only.
+-   [x] Add Git fixture tests.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- Implemented dedicated, read-only `GitAdapter` in `devcontext-core` using `std::process::Command` (ADR 0010) with zero external C/crate dependencies.
+- Implemented unit-separator (`\x1f`) parser for bounded commit history, branch/detached HEAD detection, and commit existence verification.
+- Implemented `TimelineService` assembling on-the-fly ephemeral timelines combining Git commits, notes, decisions, milestones, and development logs.
+- Added tie-breaking stable sorting (identical timestamps deterministic ordering).
+- Added `devcontext timeline` CLI command supporting `--limit`, `--type`, `--since`, `--until`, and `--json`.
+- Added comprehensive integration tests covering normal repos, 0-commit repos, detached HEAD, non-Git projects, read-only status preservation, and commit references.
+- 48 total workspace tests passing: `cargo test` exits with code 0.
+- Formatting and linting: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
+- TypeScript checks: `bun run typecheck` and `bun test` pass cleanly.
 
 ## Phase 5 --- Search and references
 
@@ -268,6 +272,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.
   2026-10-30   Phase 2: Core Domain & Storage Engine      Implemented domain models, SQLite WAL engine, schema v1 migrations, backup/restore primitives, and 30 unit/integration tests. `cargo fmt`, `cargo clippy`, and `cargo test` passed with 0 warnings.
   2026-10-30   Phase 1: Repository & Foundation           Established Cargo & Bun workspaces, licenses, CI, docs, test suites. `cargo fmt`, `cargo clippy`, `cargo test`, `tsc --noEmit`, `bun test`, `bun run build` all passed cleanly.
