@@ -258,6 +258,12 @@ pub enum MilestoneCommands {
 
     /// List milestones for the current project
     List,
+
+    /// Complete an existing milestone
+    Complete {
+        /// Milestone identifier (UUID)
+        id: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]

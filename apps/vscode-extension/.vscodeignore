@@ -1,0 +1,12 @@
+.vscode/**
+.vscode-test/**
+.vscode-test*/**
+scripts/**
+src/**
+tests/**
+tsconfig.json
+bun.lock
+bun.lockb
+node_modules/**
+*.map
+.system_generated/**

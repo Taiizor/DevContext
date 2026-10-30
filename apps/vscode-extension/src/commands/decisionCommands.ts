@@ -159,7 +159,8 @@ export function registerDecisionCommands(
           projectRoot = await workspaceManager.getTargetProjectRoot();
         } else if (itemOrId && typeof itemOrId === 'object') {
           decisionId = itemOrId.id;
-          projectRoot = itemOrId.projectRoot;
+          projectRoot =
+            itemOrId.projectRoot || (await workspaceManager.getTargetProjectRoot());
         }
 
         if (!decisionId || !projectRoot) {

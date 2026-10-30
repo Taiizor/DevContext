@@ -17,7 +17,8 @@ export class CoreLocator {
    */
   public static findExecutable(
     extensionPath?: string,
-    workspaceRoot?: string
+    workspaceRoot?: string,
+    customPathEnv?: string
   ): string | null {
     const isWindows = process.platform === 'win32';
     const binaryName = isWindows ? 'devcontext.exe' : 'devcontext';
@@ -66,7 +67,7 @@ export class CoreLocator {
     }
 
     // 4. System PATH search
-    const systemPath = this.searchSystemPath(binaryName);
+    const systemPath = this.searchSystemPath(binaryName, customPathEnv);
     if (systemPath) {
       return systemPath;
     }
@@ -77,8 +78,10 @@ export class CoreLocator {
   /**
    * Searches the directories listed in PATH for the binary.
    */
-  private static searchSystemPath(binaryName: string): string | null {
-    const envPath = process.env.PATH || '';
+  private static searchSystemPath(
+    binaryName: string,
+    envPath: string = process.env.PATH || ''
+  ): string | null {
     const pathSeparator = process.platform === 'win32' ? ';' : ':';
     const directories = envPath.split(pathSeparator);
 

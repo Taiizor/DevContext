@@ -278,11 +278,14 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "build": "bun build src/extension.ts --outfile dist/extension.js --target node --external vscode"
+    "test:integration": "bun run build && bun run scripts/runExtensionHost.ts",
+    "build": "bun build src/extension.ts --outfile dist/extension.js --target node --external vscode",
+    "package": "bun run build && bunx @vscode/vsce package --no-dependencies --allow-missing-repository"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/bun": "^1.2.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^3.1.0",
     "typescript": "^5.5.4"
   }
 }

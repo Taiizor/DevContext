@@ -34,9 +34,11 @@ export class DevContextCoreError extends Error {
  */
 export class CoreClient {
   private executablePath: string;
+  private readonly timeoutMs: number;
 
-  constructor(executablePath: string) {
+  constructor(executablePath: string, timeoutMs: number = 30000) {
     this.executablePath = executablePath;
+    this.timeoutMs = timeoutMs;
   }
 
   public setExecutablePath(newPath: string): void {
@@ -75,15 +77,36 @@ export class CoreClient {
         windowsHide: true,
       });
 
-      if (cancellationToken) {
-        cancellationToken.onCancellationRequested(() => {
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      if (this.timeoutMs > 0) {
+        timeoutHandle = setTimeout(() => {
           cancelled = true;
           try {
             child.kill();
           } catch {
             // ignore kill errors
           }
-          reject(new DevContextCoreError('CANCELLED', 'Operation was cancelled'));
+          reject(
+            new DevContextCoreError(
+              'COMMAND_TIMEOUT',
+              `Command '${this.executablePath}' timed out after ${this.timeoutMs}ms.`
+            )
+          );
+        }, this.timeoutMs);
+      }
+
+      if (cancellationToken) {
+        cancellationToken.onCancellationRequested(() => {
+          cancelled = true;
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+          try {
+            child.kill();
+          } catch {
+            // ignore kill errors
+          }
+          reject(new DevContextCoreError('COMMAND_CANCELLED', 'Operation was cancelled'));
         });
       }
 
@@ -99,6 +122,9 @@ export class CoreClient {
       });
 
       child.on('error', (err) => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
         if (!cancelled) {
           reject(
             new DevContextCoreError(
@@ -110,6 +136,9 @@ export class CoreClient {
       });
 
       child.on('close', (_code) => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
         if (cancelled) {
           return;
         }
@@ -299,12 +328,12 @@ export class CoreClient {
     details?: string,
     category?: string
   ): Promise<void> {
-    const args = ['log', 'add', summary];
+    const args = ['log', 'add', summary, '--summary', summary];
     if (details) {
       args.push('--details', details);
     }
     if (category) {
-      args.push('--category', category);
+      args.push('--tag', category);
     }
     await this.execute<unknown>(args, projectDir);
   }

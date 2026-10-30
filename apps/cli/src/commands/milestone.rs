@@ -105,5 +105,27 @@ pub fn handle_milestone(
             });
             Ok(0)
         }
+
+        MilestoneCommands::Complete { id } => {
+            let milestone_id = uuid::Uuid::parse_str(&id).map_err(|e| {
+                CoreError::Validation(format!("Invalid milestone UUID '{}': {}", id, e))
+            })?;
+
+            let mut milestone = storage
+                .get_milestone(milestone_id)?
+                .ok_or_else(|| CoreError::NotFound(format!("Milestone '{}' not found", id)))?;
+
+            milestone.set_status(MilestoneStatus::Completed);
+            storage.save_milestone(&milestone)?;
+
+            let summary = MilestoneSummary::from(&milestone);
+            renderer.success(&summary, || {
+                format!(
+                    "Completed milestone [{}] \"{}\" [{}]",
+                    summary.id, summary.title, summary.status
+                )
+            });
+            Ok(0)
+        }
     }
 }

@@ -169,7 +169,8 @@ export function registerNoteCommands(
           projectRoot = await workspaceManager.getTargetProjectRoot();
         } else if (itemOrId && typeof itemOrId === 'object') {
           noteId = itemOrId.id;
-          projectRoot = itemOrId.projectRoot;
+          projectRoot =
+            itemOrId.projectRoot || (await workspaceManager.getTargetProjectRoot());
         }
 
         if (!noteId || !projectRoot) {
@@ -234,7 +235,8 @@ export function registerNoteCommands(
           projectRoot = await workspaceManager.getTargetProjectRoot();
         } else if (itemOrId && typeof itemOrId === 'object') {
           noteId = itemOrId.id;
-          projectRoot = itemOrId.projectRoot;
+          projectRoot =
+            itemOrId.projectRoot || (await workspaceManager.getTargetProjectRoot());
         }
 
         if (!noteId || !projectRoot) {

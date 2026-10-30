@@ -16,9 +16,14 @@ export class CoreHandshake {
    */
   public static async verify(
     extensionPath?: string,
-    workspaceRoot?: string
+    workspaceRoot?: string,
+    customPathEnv?: string
   ): Promise<HandshakeResult> {
-    const executablePath = CoreLocator.findExecutable(extensionPath, workspaceRoot);
+    const executablePath = CoreLocator.findExecutable(
+      extensionPath,
+      workspaceRoot,
+      customPathEnv
+    );
 
     if (!executablePath) {
       return {

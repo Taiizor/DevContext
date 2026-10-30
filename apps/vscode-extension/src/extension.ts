@@ -74,6 +74,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerExportImportCommands(context, workspaceManager, getClient);
   registerDoctorCommand(context, workspaceManager, getClient, getHandshake);
 
+  // Status command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('devcontext.status', async () => {
+      const client = getClient();
+      if (!client) {
+        vscode.window.showErrorMessage('DevContext core is not available.');
+        return;
+      }
+      const root = await workspaceManager.getTargetProjectRoot('Select workspace to check status');
+      if (!root) {
+        return;
+      }
+      try {
+        const s = await client.status(root);
+        vscode.window.showInformationMessage(
+          `DevContext '${s.name}': ${s.stats.notes_count} notes, ${s.stats.decisions_count} ADRs, ${s.stats.milestones_count} milestones, ${s.stats.log_entries_count} logs.`
+        );
+      } catch (err) {
+        vscode.window.showErrorMessage(`Failed to get status: ${(err as Error).message}`);
+      }
+    })
+  );
+
   // View refresh command
   context.subscriptions.push(
     vscode.commands.registerCommand('devcontext.refreshViews', () => {

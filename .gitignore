@@ -12,6 +12,8 @@ out/
 # VS Code extension packaging
 *.vsix
 .vscode-test/
+.vscode-test*
+
 
 # DevContext local data and databases
 .devcontext/
