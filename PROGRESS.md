@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 0 --- Discovery and product contract (Complete)
--   **Overall status:** Phase 0 complete; ready for Phase 1 approval
+-   **Current phase:** Phase 1 --- Repository and engineering foundation (Complete)
+-   **Overall status:** Phase 1 complete; ready for Phase 2 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Engineering Foundation Setup (Pending Phase 1 approval)
+-   **Current milestone:** Core Domain and Storage Engine (Pending Phase 2 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -27,8 +27,8 @@
   Phase                                       Status        Completion date   Notes
   ------------------------------------------- ------------- ----------------- --------------------------------------------------
   0\. Discovery and product contract          Complete      2026-10-30        PRD, architecture, ADRs 0001-0009, schema v1 ready
-  1\. Repository and engineering foundation   Not started   ---               Pending user approval to begin Phase 1
-  2\. Core domain and storage                 Not started   ---               
+  1\. Repository and engineering foundation   Complete      2026-10-30        Workspace layout, Cargo, Bun/TS, CI, and test suite
+  2\. Core domain and storage                 Not started   ---               Pending user approval to begin Phase 2
   3\. CLI MVP                                 Not started   ---               
   4\. Git integration and timeline            Not started   ---               
   5\. Search and references                   Not started   ---               
@@ -43,14 +43,13 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 0 complete. Awaiting user approval to proceed to Phase 1.
+-   Phase 1 complete. Awaiting user approval to proceed to Phase 2.
 
 ## Blockers and risks
 
   ID    Blocker / risk                                                  Impact                                            Owner   Next action                                                                          Status
   ----- --------------------------------------------------------------- ------------------------------------------------- ------- ------------------------------------------------------------------------------------ --------
   R01   Extension binary delivery across platforms (Windows/macOS/Linux) Complexity in VS Code packaging and user install Core    Phase 6 packaging planning; evaluate optional pre-built release asset download fallback Open
-  R02   License formal selection                                        Clarifies community licensing before public release Core   Confirm dual MIT/Apache-2.0 recommendation prior to Phase 1 LICENSE file creation    Open
 
 ## Phase 0 --- Discovery and product contract
 
@@ -70,29 +69,43 @@
 -   [x] Record major architecture decisions in `docs/decisions/`.
 
 **Verification evidence:**
-- Product Requirements Document created at `docs/requirements/product-requirements.md` covering all 10 core user stories, MVP scope limits, platform matrix, and privacy rules.
-- Architecture Overview created at `docs/architecture/overview.md` with subsystem specifications and system flow diagram.
-- MVP Acceptance Checklist created at `docs/requirements/mvp-acceptance-checklist.md` covering platform, workspace, CRUD, timeline, search, and safety gates.
+- Product Requirements Document created at `docs/requirements/product-requirements.md`.
+- Architecture Overview created at `docs/architecture/overview.md`.
+- MVP Acceptance Checklist created at `docs/requirements/mvp-acceptance-checklist.md`.
 - Export Schema v1 created at `schemas/export-v1.schema.json` and validated with `bun -e "JSON.parse(Bun.file(...))"`.
-- ADRs 0001 through 0009 documented in `docs/decisions/` covering storage, git exclusion, workspace isolation, project identity, monorepo structure, IPC protocol, SQLite persistence, and export format.
+- ADRs 0001 through 0009 documented in `docs/decisions/`.
 
 ## Phase 1 --- Repository and engineering foundation
 
--   [ ] Create repository structure.
--   [ ] Add root `AGENTS.md` and contribution guidance.
--   [ ] Add license, README, SECURITY, CODE_OF_CONDUCT, and CONTRIBUTING
+-   [x] Create repository structure.
+-   [x] Add root `AGENTS.md` and contribution guidance.
+-   [x] Add license, README, SECURITY, CODE_OF_CONDUCT, and CONTRIBUTING
     documents.
--   [ ] Configure formatting and linting for Rust and TypeScript.
--   [ ] Configure CI for Windows, Linux, and macOS.
--   [ ] Add dependency update policy.
--   [ ] Add documented commit convention.
--   [ ] Add issue and pull request templates.
--   [ ] Add build scripts and developer setup instructions.
--   [ ] Add test fixtures and sample repositories.
--   [ ] Add release versioning strategy.
--   [ ] Ensure no secrets or local database files are committed.
+-   [x] Configure formatting and linting for Rust and TypeScript.
+-   [x] Configure CI for Windows, Linux, and macOS.
+-   [x] Add dependency update policy.
+-   [x] Add documented commit convention.
+-   [x] Add issue and pull request templates.
+-   [x] Add build scripts and developer setup instructions.
+-   [x] Add test fixtures and sample repositories.
+-   [x] Add release versioning strategy.
+-   [x] Ensure no secrets or local database files are committed.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- Created Cargo workspace manifest (`Cargo.toml`) with members `crates/devcontext-core` and `apps/cli`.
+- Created Bun-based TypeScript package for VS Code extension (`apps/vscode-extension/package.json`, `tsconfig.json`).
+- `LICENSE-MIT` and `LICENSE-APACHE` established for dual licensing.
+- Community and engineering docs created: `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `docs/commit-convention.md`, `docs/dependency-policy.md`, `docs/release-strategy.md`.
+- GitHub templates created: `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`, `.github/PULL_REQUEST_TEMPLATE.md`.
+- Cross-platform CI configured for Ubuntu, Windows, and macOS at `.github/workflows/ci.yml`.
+- `.gitignore` configured to prevent committing `.devcontext/`, `target/`, `node_modules/`, `dist/`, `*.db`, and credentials.
+- Test suites verified locally:
+  - `cargo fmt --check`: Passed (clean formatting).
+  - `cargo clippy --all-targets --all-features -- -D warnings`: Passed (0 warnings).
+  - `cargo test`: 3 unit tests passed across core and CLI.
+  - `bun run typecheck`: Passed (`tsc --noEmit` with 0 errors).
+  - `bun test`: 2 extension tests passed.
+  - `bun run build`: Extension bundled cleanly.
 
 ## Phase 2 --- Core domain and storage
 
@@ -259,6 +272,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 1: Repository & Foundation           Established Cargo & Bun workspaces, licenses, CI, docs, test suites. `cargo fmt`, `cargo clippy`, `cargo test`, `tsc --noEmit`, `bun test`, `bun run build` all passed cleanly.
   2026-10-30   Phase 0: Discovery & Product Contract      Created PRD, Architecture Overview, MVP Checklist, JSON Schema v1, and ADRs 0003-0009. Updated PROGRESS.md. Validated schema syntax with Bun. Checked git status.
 
 ## Deferred decisions
@@ -267,10 +281,6 @@ Add newest entries first.
   Topic             Decision needed   Deadline /        Status
                                       trigger           
   ----------------- ----------------- ----------------- -----------------
-  License           Confirm dual      Before Phase 1    Recommended:
-                    MIT/Apache-2.0    foundation setup  dual MIT/Apache-2.0
-                    recommendation.                     
-
   Global storage    Decide whether to Before storage    Deferred to
                     support a global  implementation    post-MVP; default
                     data directory in (Phase 2)         is .devcontext/
@@ -281,11 +291,6 @@ Add newest entries first.
                     core binaries                       
                     used by the                         
                     extension.                          
-
-  Shared knowledge  Decide exact UX   Before            Resolved via
-                    for selectively   export/import     Markdown export
-                    committing        release (Phase 7) & ADR 0003
-                    Markdown records.                   
   -----------------------------------------------------------------------
 
 ## Update protocol for agents

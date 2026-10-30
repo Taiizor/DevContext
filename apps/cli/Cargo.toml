@@ -1,0 +1,19 @@
+[package]
+name = "devcontext-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+rust-version.workspace = true
+
+[[bin]]
+name = "devcontext"
+path = "src/main.rs"
+
+[dependencies]
+devcontext-core.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

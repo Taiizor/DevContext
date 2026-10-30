@@ -1,0 +1,54 @@
+{
+  "name": "devcontext",
+  "displayName": "DevContext",
+  "description": "Local-first project memory system for software development",
+  "version": "0.1.0",
+  "publisher": "devcontext",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevContext/DevContext.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Productivity"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "devcontext.doctor",
+        "title": "DevContext: Run Doctor Diagnostic"
+      },
+      {
+        "command": "devcontext.status",
+        "title": "DevContext: Show Status"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "devcontext",
+          "title": "DevContext",
+          "icon": "media/icon.svg"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "build": "bun build src/extension.ts --outfile dist/extension.js --target node --external vscode"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.5.4"
+  }
+}
