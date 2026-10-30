@@ -1,10 +1,12 @@
 [package]
 name = "devcontext-cli"
+description = "Command-line interface for DevContext project memory"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 readme = "README.md"
 rust-version.workspace = true
 
