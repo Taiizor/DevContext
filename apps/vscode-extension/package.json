@@ -23,12 +23,131 @@
   "contributes": {
     "commands": [
       {
-        "command": "devcontext.doctor",
-        "title": "DevContext: Run Doctor Diagnostic"
+        "command": "devcontext.init",
+        "title": "DevContext: Initialize Project",
+        "category": "DevContext"
       },
       {
         "command": "devcontext.status",
-        "title": "DevContext: Show Status"
+        "title": "DevContext: Show Project Status",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.doctor",
+        "title": "DevContext: Run Doctor Diagnostic",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.search",
+        "title": "DevContext: Full-Text Search Knowledge",
+        "category": "DevContext",
+        "icon": "$(search)"
+      },
+      {
+        "command": "devcontext.newNote",
+        "title": "DevContext: New Note",
+        "category": "DevContext",
+        "icon": "$(add)"
+      },
+      {
+        "command": "devcontext.newNoteFromSelection",
+        "title": "DevContext: Create Note from Selection",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.editNote",
+        "title": "DevContext: Edit Note",
+        "category": "DevContext",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "devcontext.deleteNote",
+        "title": "DevContext: Delete Note",
+        "category": "DevContext",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "devcontext.showNote",
+        "title": "DevContext: Show Note",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.newDecision",
+        "title": "DevContext: New Architecture Decision (ADR)",
+        "category": "DevContext",
+        "icon": "$(add)"
+      },
+      {
+        "command": "devcontext.showDecision",
+        "title": "DevContext: Show Decision",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.supersedeDecision",
+        "title": "DevContext: Supersede Decision",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.newMilestone",
+        "title": "DevContext: New Milestone",
+        "category": "DevContext",
+        "icon": "$(add)"
+      },
+      {
+        "command": "devcontext.completeMilestone",
+        "title": "DevContext: Complete Milestone",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.newLog",
+        "title": "DevContext: New Development Log",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.linkFileToNote",
+        "title": "DevContext: Link File to Note",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.openReference",
+        "title": "DevContext: Open Reference",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.export",
+        "title": "DevContext: Export Project Context...",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.import",
+        "title": "DevContext: Import Project Context...",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.refreshViews",
+        "title": "DevContext: Refresh Views",
+        "category": "DevContext",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "devcontext.timelineFilterAll",
+        "title": "DevContext: Show All Timeline Events",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.timelineFilterCommits",
+        "title": "DevContext: Show Git Commits Only",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.timelineFilterNotes",
+        "title": "DevContext: Show Notes Only",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.timelineFilterDecisions",
+        "title": "DevContext: Show Decisions Only",
+        "category": "DevContext"
       }
     ],
     "viewsContainers": {
@@ -39,6 +158,121 @@
           "icon": "media/icon.svg"
         }
       ]
+    },
+    "views": {
+      "devcontext": [
+        {
+          "id": "devcontext.overviewView",
+          "name": "Project Overview"
+        },
+        {
+          "id": "devcontext.notesView",
+          "name": "Developer Notes"
+        },
+        {
+          "id": "devcontext.decisionsView",
+          "name": "Architecture Decisions"
+        },
+        {
+          "id": "devcontext.timelineView",
+          "name": "Project Timeline"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "devcontext.newNoteFromSelection",
+          "when": "editorHasSelection",
+          "group": "devcontext@1"
+        },
+        {
+          "command": "devcontext.linkFileToNote",
+          "when": "editorTextFocus",
+          "group": "devcontext@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "devcontext.refreshViews",
+          "when": "view =~ /^devcontext\\./",
+          "group": "navigation@1"
+        },
+        {
+          "command": "devcontext.search",
+          "when": "view =~ /^devcontext\\./",
+          "group": "navigation@2"
+        },
+        {
+          "command": "devcontext.newNote",
+          "when": "view == devcontext.notesView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "devcontext.newDecision",
+          "when": "view == devcontext.decisionsView",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "devcontext.editNote",
+          "when": "viewItem == devcontext.note",
+          "group": "inline@1"
+        },
+        {
+          "command": "devcontext.deleteNote",
+          "when": "viewItem == devcontext.note",
+          "group": "inline@2"
+        },
+        {
+          "command": "devcontext.supersedeDecision",
+          "when": "viewItem == devcontext.decision",
+          "group": "inline@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "devcontext.search",
+        "key": "ctrl+alt+d s",
+        "mac": "cmd+alt+d s"
+      },
+      {
+        "command": "devcontext.newNote",
+        "key": "ctrl+alt+d n",
+        "mac": "cmd+alt+d n"
+      },
+      {
+        "command": "devcontext.newDecision",
+        "key": "ctrl+alt+d a",
+        "mac": "cmd+alt+d a"
+      }
+    ],
+    "configuration": {
+      "title": "DevContext",
+      "properties": {
+        "devcontext.core.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom filesystem path to the native 'devcontext' core binary. Leave empty for automatic resolution."
+        },
+        "devcontext.timeline.defaultLimit": {
+          "type": "number",
+          "default": 50,
+          "description": "Default maximum number of chronological timeline items displayed."
+        },
+        "devcontext.search.defaultLimit": {
+          "type": "number",
+          "default": 20,
+          "description": "Default maximum number of full-text search results returned in QuickPick."
+        },
+        "devcontext.privacy.warnOnLikelySecrets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when entering likely secret tokens or credentials in notes or commands."
+        }
+      }
     }
   },
   "scripts": {

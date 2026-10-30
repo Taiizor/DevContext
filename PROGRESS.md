@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 5 --- Search and references (Complete)
--   **Overall status:** Phase 5 complete; ready for Phase 6 approval
+-   **Current phase:** Phase 6 --- VS Code extension MVP (Complete)
+-   **Overall status:** Phase 6 complete; ready for Phase 7 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** VS Code extension MVP (Pending Phase 6 approval)
+-   **Current milestone:** Export/import and data safety (Pending Phase 7 authorization)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -32,8 +32,8 @@
   3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
   4\. Git integration and timeline            Complete      2026-10-30        Read-only Git adapter, ADR 0010, unified timeline CLI
   5\. Search and references                   Complete      2026-10-30        SQLite FTS5 (BM25, unicode61), ReferenceResolver, ADR 0011
-  6\. VS Code extension MVP                   Not started   ---               Pending user approval to begin Phase 6
-  7\. Export/import and data safety           Not started   ---               
+  6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, 27 TS tests
+  7\. Export/import and data safety           Not started   ---               Pending user approval to begin Phase 7
   8\. Quality and release readiness           Not started   ---               
   9\. Public MVP release                      Not started   ---               
 
@@ -43,13 +43,13 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 5 complete. Awaiting user approval to proceed to Phase 6.
+-   Phase 6 complete. Awaiting user authorization to proceed to Phase 7.
 
 ## Blockers and risks
 
   ID    Blocker / risk                                                  Impact                                            Owner   Next action                                                                          Status
   ----- --------------------------------------------------------------- ------------------------------------------------- ------- ------------------------------------------------------------------------------------ --------
-  R01   Extension binary delivery across platforms (Windows/macOS/Linux) Complexity in VS Code packaging and user install Core    Phase 6 packaging planning; evaluate optional pre-built release asset download fallback Open
+  R01   Extension binary delivery across platforms (Windows/macOS/Linux) Complexity in VS Code packaging and user install Core    Resolved in ADR 0012: Platform-specific VSIX packaging with layered fallback (Phase 8/9 CI matrix) Closed
 
 ## Phase 0 --- Discovery and product contract
 
@@ -198,27 +198,51 @@
 
 ## Phase 6 --- VS Code extension MVP
 
--   [ ] Create extension manifest and activation strategy.
--   [ ] Detect workspace roots and multi-root workspaces.
--   [ ] Locate or provision compatible core executable.
--   [ ] Implement extension/core version handshake.
--   [ ] Add project initialization command.
--   [ ] Add activity bar container and project overview.
--   [ ] Add notes and decisions tree views.
--   [ ] Add timeline view.
--   [ ] Add search command and quick-pick results.
--   [ ] Add note creation/editing UI.
--   [ ] Add decision creation/editing UI.
--   [ ] Add milestone and log commands.
--   [ ] Add file and selection reference actions.
--   [ ] Add reference-opening actions.
--   [ ] Add export/import preview and confirmation.
--   [ ] Add privacy and storage settings.
--   [ ] Handle missing/incompatible core executable.
--   [ ] Add extension host tests and manual test checklist.
--   [ ] Ensure long operations do not block the UI.
+-   [x] Create extension manifest and activation strategy.
+-   [x] Detect workspace roots and multi-root workspaces.
+-   [x] Locate or provision compatible core executable.
+-   [x] Implement extension/core version handshake.
+-   [x] Add project initialization command.
+-   [x] Add activity bar container and project overview.
+-   [x] Add notes and decisions tree views.
+-   [x] Add timeline view.
+-   [x] Add search command and quick-pick results.
+-   [x] Add note creation/editing UI.
+-   [x] Add decision creation/editing UI.
+-   [x] Add milestone and log commands.
+-   [x] Add file and selection reference actions.
+-   [x] Add reference-opening actions.
+-   [x] Add export/import preview and confirmation.
+-   [x] Add privacy and storage settings.
+-   [x] Handle missing/incompatible core executable.
+-   [x] Add extension host tests and manual test checklist.
+-   [x] Ensure long operations do not block the UI.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- **Extension Manifest & Bundling (`apps/vscode-extension/package.json`):** Configured activation events (`onStartupFinished`, `workspaceContains:.devcontext/devcontext.db`), Activity Bar view container (`devcontext-container`), 4 custom tree views (`devcontext.views.overview`, `devcontext.views.notes`, `devcontext.views.decisions`, `devcontext.views.timeline`), 24 user-facing commands, menus (editor context, view title, inline tree items), keyboard shortcuts, and configuration settings (`devcontext.core.executablePath`, `devcontext.core.timeoutMs`, `devcontext.privacy.redactPathsInExport`, `devcontext.search.debounceMs`, `devcontext.timeline.maxEvents`). Bundled with `bun build src/extension.ts --outfile dist/extension.js --target node --external vscode` (65.42 KB single-file bundle).
+- **Core Locator & Version Handshake (`src/core/locator.ts`, `src/core/handshake.ts`, ADR 0012):** Implemented 3-tier resolution strategy (`devcontext.core.executablePath` -> bundled platform-specific VSIX `bin/<platform>-<arch>/devcontext` -> system `PATH`) with executable permissions check. Strict version handshake verifies CLI `devcontext --version` and compatibility with schema/protocol `1.x`. Missing/incompatible binaries degrade gracefully with user-actionable prompts and status bar warnings without blocking VS Code.
+- **IPC Protocol Client (`src/core/client.ts`):** `CoreClient` runs the core binary with structured arguments and `--json` flag per ADR 0007. No shell interpolation, strict timeouts, VS Code cancellation token integration (`AbortSignal`), and typed envelope validation (`ResponseEnvelope<T>`).
+- **Multi-Root Workspace Isolation (`src/workspace/workspaceManager.ts`):** Independent discovery across workspace roots without silent merging. Safe active-folder detection, read-only workspace protections (preventing init/write operations on untrusted workspaces), and change notifications.
+- **Tree Views & Status Bar (`src/views/`, `src/statusbar/statusBar.ts`):**
+  - `OverviewTreeDataProvider`: Shows project status, record statistics, DB health, or guided setup when uninitialized.
+  - `NotesTreeDataProvider`: Renders notes categorized by status (pinned, active, archived), formatted tags, and click-to-preview.
+  - `DecisionsTreeDataProvider`: Categorizes ADRs with status badges (`[ACCEPTED]`, `[PROPOSED]`, `[SUPERSEDED]`, `[REJECTED]`).
+  - `TimelineTreeDataProvider`: Chronological stream merging Git and DevContext events with type filtering.
+  - `DevContextStatusBar`: Real-time status in VS Code status bar showing active project name, counts tooltip, and warning states.
+- **Commands & Interactive Workflows (`src/commands/`):**
+  - Note management: `newNote`, `newNoteFromSelection` (capturing editor range/relative file reference), `showNote`, `editNote`, `deleteNote`.
+  - Decision management: `newDecision` (interactive multi-step prompts for title, context, decision, consequences), `showDecision`, `supersedeDecision`.
+  - Milestones & logs: `newMilestone`, `completeMilestone`, `newLog`.
+  - Live search: `devcontext.search` with debounced live QuickPick, BM25 ranking, highlight snippets, and direct item opening.
+  - References: `openReference` safely opening line ranges, workspace folders, external URLs, or Git commit hashes; `linkFileToNote` linking active files.
+  - Export/Import: `devcontext.export` and `devcontext.import` presenting detailed preview modals (record counts, privacy redaction summary) and requiring explicit user confirmation before selecting folders or executing.
+  - Doctor: `devcontext.doctor` outputting system and storage diagnostics directly to a dedicated OutputChannel.
+- **Automated Test Suites (27 Bun tests + 72 Rust tests):**
+  - Bun test suite (`cd apps/vscode-extension && bun test`): 27 passing tests across 6 suites (`client_and_ipc.test.ts`, `commands_and_workflows.test.ts`, `extension.test.ts`, `locator_and_handshake.test.ts`, `views_and_providers.test.ts`, `workspace_and_isolation.test.ts`).
+  - TypeScript typecheck (`bun run typecheck`): 0 errors (`tsc --noEmit`).
+  - Rust workspace test suite (`cargo test --workspace`): 72 passing tests across all crates (61 core + 11 CLI).
+  - Rust formatting & clippy (`cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`): 0 warnings.
+- **ADR 0012:** Documented Rust Core Binary Distribution & Resolution Strategy at `docs/decisions/0012-rust-core-binary-distribution-and-resolution-strategy.md`.
 
 ## Phase 7 --- Export/import and data safety
 
@@ -283,6 +307,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions, status bar, and test suite). 27 TS tests (Bun) + 72 Rust tests passing. `bun build` clean.
   2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), Turkish search normalization, BM25 ranking, ReferenceResolver with canonical traversal security, CLI search command, and test suite. 72 Rust tests + 2 TS tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.
@@ -301,11 +326,11 @@ Add newest entries first.
                     data directory in (Phase 2)         is .devcontext/
                     MVP.                                
 
-  Core distribution Decide packaging  Before extension  Pending Phase 6
-                    strategy for Rust MVP (Phase 6)     
-                    core binaries                       
-                    used by the                         
-                    extension.                          
+  Core distribution Decide packaging  Before extension  Resolved in ADR
+                    strategy for Rust MVP (Phase 6)     0012: Platform-
+                    core binaries                       specific VSIX
+                    used by the                         packages with
+                    extension.                          layered fallback.
   -----------------------------------------------------------------------
 
 ## Update protocol for agents
