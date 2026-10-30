@@ -61,8 +61,8 @@ devcontext note add "Task Dispatch Loop Priority Bands" \
 devcontext decision add "ADR-001: Adopt Embedded SQLite with WAL for Job Persistence" \
   -c "Aurora requires durable task persistence across process restarts without external database daemons." \
   -d "Adopt embedded SQLite with Write-Ahead Logging (WAL) and synchronous = NORMAL." \
-  -C "Single-file durability with zero external services. Reads never block writers." \
-  -a "1. Plain JSON files (risk of corruption). 2. PostgreSQL container (violates zero-dependency requirement)." \
+  --consequences "Single-file durability with zero external services. Reads never block writers." \
+  --alternatives "1. Plain JSON files (risk of corruption). 2. PostgreSQL container (violates zero-dependency requirement)." \
   -t "storage" -t "sqlite"
 ```
 
@@ -104,10 +104,10 @@ devcontext timeline
 
 ```bash
 # Export to Markdown hierarchy
-devcontext export --format markdown --out ./docs/context/
+devcontext export --format markdown -o ./docs/context/
 
 # Export to portable ZIP bundle
-devcontext export --format zip --out aurora-context.zip
+devcontext export --format zip -o aurora-context.zip
 ```
 
 **Voiceover / Caption:**

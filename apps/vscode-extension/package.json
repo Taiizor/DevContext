@@ -300,7 +300,7 @@
     "test": "bun test",
     "test:integration": "bun run build && bun run scripts/runExtensionHost.ts",
     "build": "bun build src/extension.ts --outfile dist/extension.js --target node --external vscode",
-    "package": "bun run build && bunx @vscode/vsce package --no-dependencies --allow-missing-repository"
+    "package": "bun run build && bunx @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",

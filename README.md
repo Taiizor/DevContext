@@ -45,7 +45,7 @@ devcontext init
 devcontext decision add "ADR-001: Adopt Embedded SQLite with WAL" \
   -c "Need zero-dependency persistent storage across process restarts." \
   -d "Adopt embedded SQLite with Write-Ahead Logging." \
-  -C "Single-file durability with zero external services." \
+  --consequences "Single-file durability with zero external services." \
   -t "storage" -t "sqlite"
 ```
 

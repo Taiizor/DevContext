@@ -372,7 +372,7 @@
   - Zero secrets, local databases, or machine-specific credentials present in the working tree.
 - **VS Code Extension Release Packaging:**
   - Manifest (`package.json`) verified: `publisher: devcontext`, `name: devcontext`, `version: 0.1.0`, `engines.vscode: ^1.85.0`, `categories: ["Productivity", "Other"]`, and relevant discovery keywords.
-  - Built production bundle (`dist/extension.js`, 74.64 KB) and packaged `apps/vscode-extension/devcontext-0.1.0.vsix` (20.66 KB, 8 files total, zero development or test files included).
+  - Built production bundle (`dist/extension.js`, 74.64 KB) and packaged `apps/vscode-extension/devcontext-0.1.0.vsix` (24.02 KB, 8 files total, verified dual MIT/Apache-2.0 license text in `LICENSE.txt`, zero development or test files included).
   - VSIX test-installed into isolated VS Code profile (`code --install-extension devcontext-0.1.0.vsix --force`) and verified via `code --list-extensions`.
 - **CLI Release Artifacts & Checksums (`dist/release/`):**
   - Compiled release binary: `target/release/devcontext.exe` (4.05 MB).
@@ -380,8 +380,8 @@
   - Packaged Windows release archive: `devcontext-v0.1.0-windows-x64.zip` (1.90 MB, containing `devcontext.exe`, `README.md`, `LICENSE-MIT`, `LICENSE-APACHE`).
   - Multi-platform GitHub Actions release workflow created at `.github/workflows/release.yml` covering Windows x64, Linux x64, macOS Intel x64, and macOS Apple Silicon aarch64.
   - SHA-256 Checksums (`dist/release/SHA256SUMS.txt`):
-    - `826196095ed3a44aca254e06c39c63ae1cd4b108aaaa2c47a351f6b2fad20a25`  `devcontext-v0.1.0-windows-x64.zip`
-    - `fe2a0636db11ab03231a5c2b0e27236a504c949b5544b3279c6e9bf904e86087`  `devcontext-0.1.0.vsix`
+    - `01f9ff8ac8ccdd0cc99f23b25da88055e0c6cf0805aeab75a63b72724786d7d1`  `devcontext-v0.1.0-windows-x64.zip`
+    - `35ab9ae6e639f998f72486bbcb92811a3b791eb41dbdb061058a2177dac68e96`  `devcontext-0.1.0.vsix`
     - `8fc0a98302559a317bd19baddea8c98b897b575eb95ceb7371464e0e8fdcc487`  `devcontext.exe`
 - **Documentation and Workflow Examples:**
   - Created comprehensive user guide: `docs/user/quickstart-and-workflows.md` covering end-to-end CLI and VS Code workflows, references, search, timeline, export/import, and disaster recovery.

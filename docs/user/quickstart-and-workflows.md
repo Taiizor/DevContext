@@ -80,10 +80,10 @@ ADRs capture technical decisions, context, chosen solutions, and trade-offs.
 ```bash
 # Add an Architectural Decision
 devcontext decision add "ADR-001: Adopt Embedded SQLite for Task Persistence" \
-  -c "Need durable task persistence without external daemon infrastructure." \
-  -d "Adopt embedded SQLite with Write-Ahead Logging (WAL) mode." \
-  -C "Zero-dependency single-file storage. Reads never block writers." \
-  -a "1. Plain JSON files (risk of corruption). 2. Postgres (external daemon)." \
+  --context "Need durable task persistence without external daemon infrastructure." \
+  --decision "Adopt embedded SQLite with Write-Ahead Logging (WAL) mode." \
+  --consequences "Zero-dependency single-file storage. Reads never block writers." \
+  --alternatives "1. Plain JSON files (risk of corruption). 2. Postgres (external daemon)." \
   -t "storage" -t "sqlite"
 
 # List decisions
@@ -92,12 +92,10 @@ devcontext decision list
 # Show decision details
 devcontext decision show <decision-id>
 
-# Supersede an older decision with a new one
-devcontext decision supersede <old-decision-id> \
-  --title "ADR-002: In-Memory Ring Buffer for Task Event Streaming" \
-  -c "High-throughput event streaming requires lower latency." \
-  -d "Buffer events in lock-free ring buffer before flushing to SQLite." \
-  -C "Sub-millisecond ingestion latency."
+# Supersede an older decision with a newer decision ID
+devcontext decision update <old-decision-id> \
+  --status superseded \
+  --superseded-by <new-decision-id>
 ```
 
 ### VS Code Extension Workflow
@@ -121,7 +119,8 @@ devcontext milestone complete <milestone-id>
 
 # Record a development log entry
 devcontext log add "Resolved queue starvation under heavy load" \
-  -d "Implemented fair round-robin scheduling yielding CPU cycles after 5 high-priority batches." \
+  --summary "Implemented fair round-robin scheduling yielding CPU cycles after 5 high-priority batches." \
+  -d "Under high burst traffic, default tasks were delayed. Interleaving resolved starvation." \
   -t "bugfix" -t "concurrency"
 ```
 
@@ -205,9 +204,9 @@ DevContext guarantees complete data portability and zero vendor lock-in.
 ### CLI Workflow
 ```bash
 # Export project context
-devcontext export --format json --out export.json
-devcontext export --format markdown --out ./docs/context/
-devcontext export --format zip --out project-memory.zip
+devcontext export --format json -o export.json
+devcontext export --format markdown -o ./docs/context/
+devcontext export --format zip -o project-memory.zip
 
 # Preview export (record counts and path redaction check)
 devcontext export --preview

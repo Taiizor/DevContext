@@ -49,7 +49,7 @@ devcontext init
 devcontext decision add "ADR-001: Adopt SQLite with WAL" \
   -c "Need embedded, zero-dependency persistence." \
   -d "Adopt SQLite with Write-Ahead Logging." \
-  -C "High concurrency, single-file durability."
+  --consequences "High concurrency, single-file durability."
 
 # Search your project context
 devcontext search "sqlite"
