@@ -19,6 +19,10 @@ export class DecisionItem extends vscode.TreeItem {
     }
 
     this.tooltip = `Architecture Decision: ${decision.title}\nID: ${decision.id}\n${statusTip}\nCreated: ${decision.created_at}\nTags: ${decision.tags.join(', ') || 'none'}`;
+    this.accessibilityInformation = {
+      label: `Architecture Decision: ${decision.title}, status: ${decision.status}${decision.tags.length > 0 ? ', tags ' + decision.tags.join(', ') : ''}`,
+      role: 'treeitem',
+    };
 
     switch (decision.status) {
       case 'accepted':

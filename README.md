@@ -10,10 +10,17 @@ Git records *how* files changed. DevContext records the human and technical cont
 
 ## Status
 
-DevContext is currently in active development (**Phase 1 — Repository and Engineering Foundation**).
+DevContext is at **Release Candidate 1 (`v0.1.0-rc1`)** (**Phase 8 — Quality, Accessibility, and Release Readiness**).
 
 - Architecture decisions: [`docs/decisions/`](docs/decisions/)
 - Product requirements: [`docs/requirements/product-requirements.md`](docs/requirements/product-requirements.md)
+- User Documentation: [`docs/user/`](docs/user/)
+  - [Installation & Upgrade Guide](docs/user/installation-and-upgrade.md)
+  - [Troubleshooting Guide](docs/user/troubleshooting.md)
+  - [Backup & Recovery Guide](docs/user/backup-and-recovery.md)
+  - [Privacy & Storage Architecture](docs/user/privacy-and-storage.md)
+- Release Candidate Checklist: [`docs/release/release-candidate-checklist.md`](docs/release/release-candidate-checklist.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Live tracker: [`PROGRESS.md`](PROGRESS.md)
 

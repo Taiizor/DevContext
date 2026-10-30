@@ -13,6 +13,10 @@ export class OverviewItem extends vscode.TreeItem {
     super(label, collapsibleState);
     this.description = description;
     this.command = command;
+    this.accessibilityInformation = {
+      label: description ? `${label}: ${description}` : label,
+      role: 'treeitem',
+    };
   }
 }
 

@@ -13,6 +13,10 @@ export class TimelineTreeItem extends vscode.TreeItem {
     const authorStr = event.author ? `\nAuthor: ${event.author}` : '';
     const summaryStr = event.summary ? `\nSummary: ${event.summary}` : '';
     this.tooltip = `${event.title} (${event.event_type})\nTime: ${event.timestamp}${authorStr}\nID: ${event.identifier}${summaryStr}`;
+    this.accessibilityInformation = {
+      label: `Timeline Event: ${event.event_type}, ${event.title}, date: ${dateStr}${event.author ? ', author: ' + event.author : ''}`,
+      role: 'treeitem',
+    };
 
     switch (event.event_type) {
       case 'commit':

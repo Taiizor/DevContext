@@ -13,6 +13,10 @@ export class NoteItem extends vscode.TreeItem {
     this.id = note.id;
     this.description = note.tags.length > 0 ? note.tags.map((t) => `#${t}`).join(' ') : undefined;
     this.tooltip = `Note: ${note.title}\nID: ${note.id}\nUpdated: ${note.updated_at}\nTags: ${note.tags.join(', ') || 'none'}`;
+    this.accessibilityInformation = {
+      label: `Developer Note: ${note.title}${note.is_pinned ? ', pinned' : ''}${note.tags.length > 0 ? ', tags ' + note.tags.join(', ') : ''}`,
+      role: 'treeitem',
+    };
 
     if (note.is_pinned) {
       this.iconPath = new vscode.ThemeIcon('pin');
