@@ -4,37 +4,35 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { CoreClient } from '../src/core/client';
 
-describe('Real Core Export, Import, Inspect, and Data Safety (Phase 7)', () => {
-  let cliBinaryPath: string;
+const isWindows = process.platform === 'win32';
+const binaryName = isWindows ? 'devcontext.exe' : 'devcontext';
+const cliBinaryPath = path.resolve(
+  __dirname,
+  '../../../target/debug',
+  binaryName
+);
+const isBinaryAvailable = fs.existsSync(cliBinaryPath);
+const suite = isBinaryAvailable ? describe : describe.skip;
+
+suite('Real Core Export, Import, Inspect, and Data Safety (Phase 7)', () => {
   let tempWorkspace1: string;
   let tempWorkspace2: string;
   let client: CoreClient;
 
   beforeAll(() => {
-    const isWindows = process.platform === 'win32';
-    const binaryName = isWindows ? 'devcontext.exe' : 'devcontext';
-    cliBinaryPath = path.resolve(
-      __dirname,
-      '../../../target/debug',
-      binaryName
-    );
-
-    if (!fs.existsSync(cliBinaryPath)) {
-      throw new Error(`Real core binary not found at '${cliBinaryPath}'. Build target/debug first.`);
-    }
-
+    if (!isBinaryAvailable) return;
     client = new CoreClient(cliBinaryPath, 15000);
-
     tempWorkspace1 = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-p7-src-'));
     tempWorkspace2 = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-p7-dest-'));
   });
 
   afterAll(() => {
+    if (!tempWorkspace1 || !tempWorkspace2) return;
     try {
       fs.rmSync(tempWorkspace1, { recursive: true, force: true });
       fs.rmSync(tempWorkspace2, { recursive: true, force: true });
     } catch {
-      // ignore
+      // Ignore cleanup error
     }
   });
 

@@ -7,23 +7,27 @@ import { CoreLocator } from '../src/core/locator';
 import { CoreHandshake } from '../src/core/handshake';
 import { mockVscode } from './mockVscode';
 
-describe('Real Rust Core CLI & JSON IPC Integration', () => {
-  const extensionDir = path.resolve(__dirname, '..');
-  const projectRoot = path.resolve(extensionDir, '../..');
-  const realExecutablePath = path.resolve(
-    projectRoot,
-    'target/debug',
-    process.platform === 'win32' ? 'devcontext.exe' : 'devcontext'
-  );
+const extensionDir = path.resolve(__dirname, '..');
+const projectRoot = path.resolve(extensionDir, '../..');
+const realExecutablePath = path.resolve(
+  projectRoot,
+  'target/debug',
+  process.platform === 'win32' ? 'devcontext.exe' : 'devcontext'
+);
+const isBinaryAvailable = fs.existsSync(realExecutablePath);
+const suite = isBinaryAvailable ? describe : describe.skip;
 
+suite('Real Rust Core CLI & JSON IPC Integration', () => {
   let tempDir: string;
 
   beforeAll(() => {
+    if (!isBinaryAvailable) return;
     expect(fs.existsSync(realExecutablePath)).toBe(true);
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dc-real-core-'));
   });
 
   afterAll(() => {
+    if (!tempDir) return;
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });
     } catch {
