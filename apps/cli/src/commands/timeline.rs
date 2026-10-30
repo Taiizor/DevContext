@@ -37,15 +37,22 @@ pub fn handle_timeline(
         until: args.until,
     };
 
-    let events = TimelineService::assemble_timeline(&storage, project.id, &root, &filter)?;
+    let timeline = TimelineService::assemble_timeline(&storage, project.id, &root, &filter)?;
 
-    renderer.success(&events, || {
-        if events.is_empty() {
+    renderer.success(&timeline, || {
+        if timeline.events.is_empty() {
             return "No timeline events match the criteria.".to_string();
         }
 
-        let mut out = format!("Project Timeline ({} events):\n\n", events.len());
-        for ev in &events {
+        let mut out = format!("Project Timeline ({} events):\n", timeline.events.len());
+        if timeline.is_truncated {
+            out.push_str(
+                "Notice: Git history was capped at the 1,000 commit safety limit. Older matching commits may exist.\n",
+            );
+        }
+        out.push('\n');
+
+        for ev in &timeline.events {
             let type_label = ev.event_type.to_string().to_uppercase();
             out.push_str(&format!(
                 "[{}] {}: {}\n",

@@ -162,11 +162,11 @@
 - **Strict offline execution:** Configured all Git subprocesses with `GIT_NO_LAZY_FETCH=1`, `GIT_OPTIONAL_LOCKS=0`, and `GIT_TERMINAL_PROMPT=0` to guarantee offline execution, zero network requests in partial/blobless clones, and no lock file acquisition.
 - **Missing executable resilience:** Handled `ErrorKind::NotFound` gracefully without crashes; timeline assembly continues serving DevContext records when Git is not installed or unavailable.
 - **Shallow clone support:** Verified metadata retrieval in shallow clones (`git clone --depth 1`) without attempting to fetch parent objects.
-- **Bounded retrieval & large repo safety:** Invocations pass `-n <limit>` directly down to `git log`; `TimelineService` enforces an upper safety retrieval cap (`DEFAULT_MAX_COMMITS_UNBOUNDED = 1000`) when limits are omitted, preventing unbounded memory loading.
+- **Bounded retrieval & truncation discoverability:** Supported date constraints (`--since`, `--until`) are pushed directly down into the Git subprocess query. Invocations use a 1000-commit safety cap (`DEFAULT_MAX_COMMITS_UNBOUNDED = 1000`) to prevent memory exhaustion, with truncation made fully discoverable via `TimelineView.is_truncated` (JSON envelopes and CLI warning banners). The final global limit is applied only after merging all matching Git and DevContext events.
 - **Structured delimiter parsing:** Uses ASCII record separator (`\x1e`, 0x1E) and unit separator (`\x1f`, 0x1F) to parse commit messages with multiline content, quotes, commas, brackets, and UTF-8 emojis (`🚀`, `✨`, `⚡`) deterministically. Empty commit messages fall back to short hash, and atypical authors (missing email/name) are handled safely.
 - **Predictable date filtering:** Implemented timestamp and date-only parsing in `TimelineFilter` where `--until=YYYY-MM-DD` covers the entire calendar day up to 23:59:59.999Z.
-- **ADR 0010 update:** Documented technical guarantees, architecture, and exact limitations in `docs/decisions/0010-process-based-read-only-git-adapter.md`.
-- **52 total workspace tests passing:** `cargo test --workspace` passes cleanly with 0 failures across unit and integration tests.
+- **ADR 0010 update:** Accurately distinguished command allowlist guarantees, `GIT_OPTIONAL_LOCKS=0` scope, and subprocess execution limitations in `docs/decisions/0010-process-based-read-only-git-adapter.md`.
+- **54 total workspace tests passing:** `cargo test --workspace` passes cleanly with 0 failures across unit and integration tests (10 CLI + 44 Core).
 - **Code hygiene:** `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
 - **TypeScript checks:** `bun run typecheck` and `bun test` pass cleanly.
 

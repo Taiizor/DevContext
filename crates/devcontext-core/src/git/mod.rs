@@ -4,4 +4,6 @@ pub mod timeline;
 
 pub use adapter::GitAdapter;
 pub use model::GitCommitInfo;
-pub use timeline::{TimelineEvent, TimelineEventType, TimelineFilter, TimelineService};
+pub use timeline::{
+    TimelineEvent, TimelineEventType, TimelineFilter, TimelineService, TimelineView,
+};

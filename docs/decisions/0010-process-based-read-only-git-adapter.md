@@ -23,7 +23,7 @@ Furthermore, we must decide whether to replicate/cache Git commits inside the lo
    - DevContext will use a dedicated `GitAdapter` that queries the system `git` binary using `std::process::Command`.
    - If `git` is not installed or the directory is not a Git repository, DevContext degrades gracefully on `ErrorKind::NotFound` and non-zero exit codes without errors—Git features are simply bypassed, and native DevContext records are displayed normally.
 
-2. **Strict Read-Only and Offline Guarantees:**
+2. **Strict Command Allowlist and Process Isolation:**
    - The adapter will **only** invoke read-only querying commands:
      - `git rev-parse --is-inside-work-tree`
      - `git rev-parse --show-toplevel`
@@ -31,16 +31,18 @@ Furthermore, we must decide whether to replicate/cache Git commits inside the lo
      - `git rev-parse HEAD` (head commit)
      - `git log --format=...` (bounded commit history)
      - `git cat-file -e <hash>` (commit existence check)
-   - Mutating commands (`commit`, `branch`, `checkout`, `reset`, `stash`, `merge`, `config`, `hook`) are strictly prohibited.
+   - Mutating commands (`commit`, `branch`, `checkout`, `reset`, `stash`, `merge`, `config`, `hook`, `rebase`) are strictly prohibited in the codebase.
    - Every subprocess invocation enforces strict execution environment invariants:
-     - `GIT_NO_LAZY_FETCH=1`: Disables Git from performing lazy on-demand remote object downloads in partial or blobless/treeless clones.
-     - `GIT_OPTIONAL_LOCKS=0`: Disables background operations and read queries from acquiring optional repository locks on `.git/index`.
+     - `GIT_NO_LAZY_FETCH=1`: Instructs Git not to attempt automatic on-demand remote object downloads in partial, blobless, or treeless clones.
+     - `GIT_OPTIONAL_LOCKS=0`: Requests that Git omit acquiring optional locks (such as updating file stat caches in `.git/index` during read-only inspection operations).
      - `GIT_TERMINAL_PROMPT=0`: Disables interactive credential and passphrase prompts, guaranteeing immediate non-blocking failure instead of hanging indefinitely.
    - These environment variables are scoped strictly to the child process via `std::process::Command::env` and never modify the parent process environment, global user settings, or repository configuration.
 
-3. **Bounded Memory and Shallow Clone Resilience:**
-   - Subprocess invocations pass limit arguments directly to Git (`-n <limit>`), ensuring Git traverses only the required commit count and never loads unbounded commit histories into memory on large repositories (e.g. 100,000+ commits).
-   - If an unbounded timeline query is requested, `TimelineService` enforces an upper safety retrieval cap (`DEFAULT_MAX_COMMITS_UNBOUNDED = 1000`).
+3. **Date Constraints, Bounded Safety Cap, and Truncation Discoverability:**
+   - Supported date constraints (`--since`, `--until`) are pushed directly down into the Git subprocess query, ensuring Git only traverses commits within the requested date boundaries.
+   - Subprocess invocations query up to `DEFAULT_MAX_COMMITS_UNBOUNDED + 1` (1001 commits), establishing an upper safety cap against unbounded memory consumption on large repositories (e.g. 100,000+ commits).
+   - If more than 1000 commits match, `TimelineView` marks `is_truncated = true`. This is exposed explicitly in machine-readable JSON envelopes (`"is_truncated": true`) and via human-readable CLI warning banners. DevContext never silently presents a capped history as a complete history.
+   - The user-specified `--limit` is applied as the final global limit only after merging and chronologically sorting all matching Git and DevContext records.
    - Shallow clones (e.g. `git clone --depth 1`) are fully supported; commits are queried up to the shallow boundary without triggering network fetches or failing on grafted commit roots.
 
 4. **Structured Delimitation and Robust Parsing:**
@@ -50,21 +52,22 @@ Furthermore, we must decide whether to replicate/cache Git commits inside the lo
 
 5. **Ephemeral Timeline Assembly (No Commit Duplication):**
    - DevContext will **not** store or sync full Git commit histories into the SQLite database.
-   - The timeline is assembled dynamically in memory: DevContext records are queried from SQLite, Git commits are boundedly read from `git log`, merged into a unified `TimelineEvent` stream, sorted chronologically by UTC timestamp, and paginated.
+   - The timeline is assembled dynamically in memory: DevContext records are queried from SQLite, Git commits are read from `git log`, merged into a unified `TimelineEvent` stream, sorted chronologically by UTC timestamp, and paginated.
    - Date range filtering (`--since`, `--until`) predictably handles both full RFC-3339 timestamps and date-only `YYYY-MM-DD` strings (with `--until` covering the full day up to 23:59:59.999Z).
 
 ## Technical Guarantees vs. Limitations
 
-### Guarantees
-- DevContext will never mutate Git working trees, branch references, index files, or repository configuration.
-- DevContext will never perform network operations or trigger remote fetches via Git.
-- DevContext will never acquire `.git/index` lock files during inspection.
-- When Git is absent or broken, DevContext continues functioning completely for all non-Git project memory features without crashing.
+### Guarantees Provided by DevContext's Design
+- **Command Whitelist:** DevContext's source code contains no logic to execute mutating Git subcommands or modify Git configuration.
+- **Offline Invariant:** Invocations pass `GIT_NO_LAZY_FETCH=1` and `GIT_TERMINAL_PROMPT=0` to prevent partial-clone network fetching and interactive terminal hangs.
+- **Environment Non-Interference:** DevContext never alters the developer's global environment variables or repository `.git/config`.
+- **Fault-Tolerant Fallback:** When Git is absent or fails to launch, DevContext continues functioning completely for all non-Git project memory features without crashing.
+- **Transparent Truncation:** When Git commit retrieval hits the 1000-commit safety cap, `is_truncated` is visibly surfaced to the user.
 
-### Limitations
-- DevContext relies on process-level execution of the system `git` executable found on `$PATH`.
-- In environments where Git is not installed, Git commit history and branch metadata are not available.
-- If a user configures unusual system-level wrappers or custom scripts named `git` that do not conform to standard Git CLI semantics, behavior is limited by the external script's output.
+### Subprocess Execution Realities and Limitations
+- **Process Delegation:** DevContext delegates metadata retrieval to the system `git` binary found on `$PATH`. It is not an OS-level sandbox or microkernel.
+- **`GIT_OPTIONAL_LOCKS=0` Scope:** This setting asks Git to skip optional locking mechanisms (like index stat cache updates during reads). It is not an operating-system-level filesystem write block; safety from repository mutation is enforced by only invoking read-only Git subcommands.
+- **Custom Wrappers and Aliases:** If a user or environment has replaced `git` on `$PATH` with a custom script, hook, or wrapper that performs unintended operations or produces non-standard output, DevContext is bound by the behavior and exit status of that external binary.
 
 ## Consequences
 
@@ -74,6 +77,7 @@ Furthermore, we must decide whether to replicate/cache Git commits inside the lo
 - Safe by default: no Git mutation, no network requests, no lock acquisition.
 - No stale Git cache: timeline always reflects real-time repository state.
 - Graceful degradation in non-Git workspaces.
+- Truncation is always discoverable.
 
 ### Trade-offs
 - Git timeline integration requires a working `git` binary installed on `$PATH`. In environments without Git, timeline displays only authored DevContext records.

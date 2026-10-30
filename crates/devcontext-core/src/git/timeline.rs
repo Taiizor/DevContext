@@ -8,7 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 use uuid::Uuid;
 
-/// Upper limit of Git commits queried when timeline limit is unspecified.
+/// Upper safety cap for Git commits queried when timeline limit is unspecified or bounded.
 pub const DEFAULT_MAX_COMMITS_UNBOUNDED: usize = 1000;
 
 /// Identified category for unified timeline events.
@@ -65,6 +65,39 @@ pub struct TimelineEvent {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Unified timeline view containing assembled events and truncation status.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TimelineView {
+    pub events: Vec<TimelineEvent>,
+    pub is_truncated: bool,
+}
+
+impl std::ops::Deref for TimelineView {
+    type Target = [TimelineEvent];
+
+    fn deref(&self) -> &Self::Target {
+        &self.events
+    }
+}
+
+impl IntoIterator for TimelineView {
+    type Item = TimelineEvent;
+    type IntoIter = std::vec::IntoIter<TimelineEvent>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.events.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a TimelineView {
+    type Item = &'a TimelineEvent;
+    type IntoIter = std::slice::Iter<'a, TimelineEvent>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.events.iter()
+    }
+}
+
 /// Filter criteria for querying the project timeline.
 #[derive(Debug, Clone, Default)]
 pub struct TimelineFilter {
@@ -83,9 +116,20 @@ impl TimelineService {
         project_id: Uuid,
         project_root: impl AsRef<Path>,
         filter: &TimelineFilter,
-    ) -> Result<Vec<TimelineEvent>> {
+    ) -> Result<TimelineView> {
         let mut events = Vec::new();
         let root = project_root.as_ref();
+        let mut is_truncated = false;
+
+        // Parse normalized date boundaries upfront
+        let since_bound = filter
+            .since
+            .as_deref()
+            .and_then(|s| parse_bound_date(s, false));
+        let until_bound = filter
+            .until
+            .as_deref()
+            .and_then(|u| parse_bound_date(u, true));
 
         // 1. Ingest DevContext Notes
         if filter.event_type.is_none() || filter.event_type == Some(TimelineEventType::Note) {
@@ -177,20 +221,30 @@ impl TimelineService {
         if (filter.event_type.is_none() || filter.event_type == Some(TimelineEventType::Commit))
             && GitAdapter::is_git_repository(root)
         {
-            // Bounded commit retrieval:
-            // - If user specifies limit L, fetch up to 2*L commits to allow interleaving with DevContext records
-            // - If limit is omitted, cap at DEFAULT_MAX_COMMITS_UNBOUNDED to prevent unbounded memory loading on 100k+ commit repositories
-            let commit_limit = filter
-                .limit
-                .map(|l| l.saturating_mul(2))
-                .or(Some(DEFAULT_MAX_COMMITS_UNBOUNDED));
+            // Push normalized UTC date constraints into the Git query itself
+            let since_git = since_bound
+                .map(|dt| dt.to_rfc3339())
+                .or_else(|| filter.since.clone());
+            let until_git = until_bound
+                .map(|dt| dt.to_rfc3339())
+                .or_else(|| filter.until.clone());
 
-            let commits = GitAdapter::get_commits(
+            // Query up to DEFAULT_MAX_COMMITS_UNBOUNDED + 1 to detect whether the safety cap was reached.
+            // Note: We do NOT prematurely restrict Git to filter.limit here; date constraints are pushed
+            // into Git, and the final global limit is applied only after merging all Git and DevContext records.
+            let git_query_cap = DEFAULT_MAX_COMMITS_UNBOUNDED.saturating_add(1);
+
+            let mut commits = GitAdapter::get_commits(
                 root,
-                commit_limit,
-                filter.since.as_deref(),
-                filter.until.as_deref(),
+                Some(git_query_cap),
+                since_git.as_deref(),
+                until_git.as_deref(),
             )?;
+
+            if commits.len() > DEFAULT_MAX_COMMITS_UNBOUNDED {
+                commits.truncate(DEFAULT_MAX_COMMITS_UNBOUNDED);
+                is_truncated = true;
+            }
 
             for commit in commits {
                 let author = match (
@@ -233,16 +287,7 @@ impl TimelineService {
             }
         }
 
-        // 6. Predictable Date Range Filtering
-        let since_bound = filter
-            .since
-            .as_deref()
-            .and_then(|s| parse_bound_date(s, false));
-        let until_bound = filter
-            .until
-            .as_deref()
-            .and_then(|u| parse_bound_date(u, true));
-
+        // 6. Predictable Date Range Filtering across all events
         events.retain(|e| {
             if let (Some(bound), Some(ev_dt)) = (&since_bound, parse_event_timestamp(&e.timestamp))
             {
@@ -272,8 +317,7 @@ impl TimelineService {
         // 7. Stable Chronological Sorting (Newest First)
         // Primary: timestamp descending
         // Secondary: event_type priority
-        // Tertiary: id lexicographical tie-breaker (stable between runs)
-        // Note: We use slice::sort_by with stable sort or index to preserve topological order within same type
+        // Tertiary: discovery/topological order
         let mut indexed_events: Vec<(TimelineEvent, usize)> = events
             .into_iter()
             .enumerate()
@@ -289,14 +333,17 @@ impl TimelineService {
 
         let mut events: Vec<TimelineEvent> = indexed_events.into_iter().map(|(ev, _)| ev).collect();
 
-        // 8. Apply limit
+        // 8. Apply final global limit after merging and sorting all events
         if let Some(limit) = filter.limit {
             if events.len() > limit {
                 events.truncate(limit);
             }
         }
 
-        Ok(events)
+        Ok(TimelineView {
+            events,
+            is_truncated,
+        })
     }
 }
 
