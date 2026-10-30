@@ -8,11 +8,21 @@ pub struct BackupService;
 
 impl BackupService {
     /// Performs an online, non-blocking backup of the current database to `destination_path`.
+    /// Guarantees that existing backup files are never silently overwritten, and verifies
+    /// backup integrity immediately after creation.
     pub fn backup_to_file(
         storage: &SqliteStorage,
         destination_path: impl AsRef<Path>,
     ) -> Result<()> {
         let dest = destination_path.as_ref();
+
+        if dest.exists() {
+            return Err(CoreError::Storage(format!(
+                "Backup destination already exists and will not be overwritten: {}",
+                dest.display()
+            )));
+        }
+
         if let Some(parent) = dest.parent() {
             if !parent.as_os_str().is_empty() {
                 std::fs::create_dir_all(parent)?;
@@ -25,8 +35,19 @@ impl BackupService {
             .lock()
             .map_err(|e| CoreError::Concurrency(format!("Database lock poisoned: {}", e)))?;
 
-        let backup = rusqlite::backup::Backup::new(&src_conn, &mut dest_conn)?;
-        backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        {
+            let backup = rusqlite::backup::Backup::new(&src_conn, &mut dest_conn)?;
+            backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        }
+
+        drop(dest_conn);
+        drop(src_conn);
+
+        // Immediate integrity check on newly created backup file
+        if let Err(e) = Self::verify_file_integrity(dest) {
+            let _ = std::fs::remove_file(dest);
+            return Err(e);
+        }
 
         Ok(())
     }
@@ -46,13 +67,85 @@ impl BackupService {
             )));
         }
 
+        Self::verify_file_integrity(backup_path)?;
+
         let mut target_conn = DbConnection::open(target_path)?;
         let backup_conn = DbConnection::open(backup_path)?;
 
-        let backup = rusqlite::backup::Backup::new(&backup_conn, &mut target_conn)?;
-        backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        {
+            let backup = rusqlite::backup::Backup::new(&backup_conn, &mut target_conn)?;
+            backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        }
 
+        drop(target_conn);
+        drop(backup_conn);
         SqliteStorage::open(target_path)
+    }
+
+    /// Safely restores database pages from `backup_path` directly into an active `SqliteStorage` instance.
+    /// Locks the storage connection mutex to coordinate safely without file-locking races or WAL corruption.
+    pub fn restore_to_storage(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+    ) -> Result<()> {
+        let backup_path = backup_path.as_ref();
+
+        if !backup_path.exists() {
+            return Err(CoreError::NotFound(format!(
+                "Backup file not found at: {}",
+                backup_path.display()
+            )));
+        }
+
+        Self::verify_file_integrity(backup_path)?;
+
+        let backup_conn = DbConnection::open(backup_path)?;
+        let dest_arc = storage.connection_arc();
+        let mut dest_conn = dest_arc
+            .lock()
+            .map_err(|e| CoreError::Concurrency(format!("Database lock poisoned: {}", e)))?;
+
+        {
+            let backup = rusqlite::backup::Backup::new(&backup_conn, &mut dest_conn)?;
+            backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+        }
+
+        drop(dest_conn);
+        drop(backup_conn);
+        Self::verify_integrity(storage).map(|_| ())
+    }
+
+    /// Verifies the physical and logical integrity of an SQLite database file on disk.
+    pub fn verify_file_integrity(path: impl AsRef<Path>) -> Result<()> {
+        let p = path.as_ref();
+        if !p.exists() {
+            return Err(CoreError::NotFound(format!(
+                "Database file not found for integrity check: {}",
+                p.display()
+            )));
+        }
+
+        let conn = DbConnection::open(p)?;
+        let mut stmt = conn.prepare("PRAGMA integrity_check;")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            let res = row?;
+            if res.to_lowercase() != "ok" {
+                results.push(res);
+            }
+        }
+
+        if results.is_empty() {
+            Ok(())
+        } else {
+            Err(CoreError::Integrity(format!(
+                "File integrity check failed for {}: {:?}",
+                p.display(),
+                results
+            )))
+        }
     }
 
     /// Runs SQLite `PRAGMA integrity_check` to verify database health.

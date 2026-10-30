@@ -759,3 +759,116 @@ fn test_saved_command_working_directory_sanitization() {
 
     drop(storage);
 }
+
+#[test]
+fn test_multiple_backups_preservation_and_uniqueness() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (_project, storage) = setup_sample_project(root);
+
+    let export_file = dir.path().join("export.json");
+    let export_opts = ExportOptions {
+        format: ExportFormat::Json,
+        output_path: Some(export_file.clone()),
+        redact_paths: false,
+    };
+    let (_bundle, _path) = ExportService::export_project(root, &export_opts).unwrap();
+    drop(storage);
+
+    let import_opts = ImportOptions {
+        on_conflict: ConflictStrategy::Skip,
+        create_backup: true,
+        dry_run: false,
+    };
+
+    // Operation 1: Import with backup
+    let res1 = ExportService::import_bundle(root, &export_file, &import_opts).unwrap();
+    assert!(res1.backup_path.is_some());
+
+    // Small delay to ensure timestamp variance if needed, but UUID already guarantees uniqueness
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    // Operation 2: Delete project data with backup
+    let res2 = ExportService::delete_project_data(root, true, true).unwrap();
+    assert!(res2.backup_path.is_some());
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    // Operation 3: Import again with backup
+    let res3 = ExportService::import_bundle(root, &export_file, &import_opts).unwrap();
+    assert!(res3.backup_path.is_some());
+
+    let backup_dir = root.join(".devcontext").join("backups");
+    let mut backup_entries: Vec<std::path::PathBuf> = fs::read_dir(&backup_dir)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|ent| ent.path()))
+        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("db"))
+        .collect();
+    backup_entries.sort();
+
+    // Verify exactly 3 distinct, preserved backups
+    assert_eq!(
+        backup_entries.len(),
+        3,
+        "All previous backups must be preserved"
+    );
+
+    // Verify all filenames are unique
+    let filenames: std::collections::HashSet<String> = backup_entries
+        .iter()
+        .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+        .collect();
+    assert_eq!(filenames.len(), 3, "Each backup must have a unique name");
+
+    // Verify each backup file passes strict SQLite integrity verification
+    for bp in &backup_entries {
+        assert!(
+            BackupService::verify_file_integrity(bp).is_ok(),
+            "Backup {} must pass integrity check",
+            bp.display()
+        );
+    }
+}
+
+#[test]
+fn test_backup_destination_already_exists_rejection() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (_project, storage) = setup_sample_project(root);
+
+    let backup_path = dir.path().join("existing_backup.db");
+    fs::write(&backup_path, b"some existing file").unwrap();
+
+    let res = BackupService::backup_to_file(&storage, &backup_path);
+    assert!(res.is_err(), "Must reject overwriting existing backup file");
+    let err_str = res.unwrap_err().to_string();
+    assert!(err_str.contains("already exists"));
+}
+
+#[test]
+fn test_backup_creation_failure_aborts_destructive_operation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 1);
+    drop(storage);
+
+    // Block backup directory by creating a regular file at .devcontext/backups
+    let backup_dir_blocker = root.join(".devcontext").join("backups");
+    fs::write(&backup_dir_blocker, b"blocking directory creation").unwrap();
+
+    // Attempt delete_project_data with backup requested
+    let res = ExportService::delete_project_data(root, true, true);
+    assert!(
+        res.is_err(),
+        "Destructive deletion must abort if backup creation fails"
+    );
+
+    // Verify project data was NOT deleted
+    let (_project2, storage2) = WorkspaceManager::open_project(root).unwrap();
+    assert_eq!(
+        storage2.list_notes(project.id, false).unwrap().len(),
+        1,
+        "Records must remain intact when backup fails"
+    );
+}

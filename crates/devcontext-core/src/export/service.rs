@@ -541,8 +541,7 @@ impl ExportService {
         // Atomicity and recovery safeguard: if any record fails, restore database from pre-import backup
         if let Err(err) = import_execution {
             if let Some(backup_path) = &backup_path_str {
-                let db_path = project_root.join(".devcontext").join("devcontext.db");
-                let _ = BackupService::restore_from_file(backup_path, &db_path);
+                let _ = BackupService::restore_to_storage(backup_path, &storage);
             }
             return Err(err);
         }
