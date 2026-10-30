@@ -10,19 +10,62 @@ Git records *how* files changed. DevContext records the human and technical cont
 
 ## Status
 
-DevContext is at **Release Candidate 1 (`v0.1.0-rc1`)** (**Phase 8 — Quality, Accessibility, and Release Readiness**).
+DevContext is at **v0.1.0 (Public MVP Release)** (**Phase 9 — Public MVP Release**).
 
 - Architecture decisions: [`docs/decisions/`](docs/decisions/)
 - Product requirements: [`docs/requirements/product-requirements.md`](docs/requirements/product-requirements.md)
 - User Documentation: [`docs/user/`](docs/user/)
+  - [Quickstart & Common Workflows](docs/user/quickstart-and-workflows.md)
   - [Installation & Upgrade Guide](docs/user/installation-and-upgrade.md)
-  - [Troubleshooting Guide](docs/user/troubleshooting.md)
-  - [Backup & Recovery Guide](docs/user/backup-and-recovery.md)
+  - [Troubleshooting & Diagnostics](docs/user/troubleshooting.md)
+  - [Backup & Disaster Recovery](docs/user/backup-and-recovery.md)
   - [Privacy & Storage Architecture](docs/user/privacy-and-storage.md)
-- Release Candidate Checklist: [`docs/release/release-candidate-checklist.md`](docs/release/release-candidate-checklist.md)
+- Sample Project Dataset: [`examples/sample-project/`](examples/sample-project/)
+- Release Documentation: [`docs/release/`](docs/release/)
+  - [Release Notes v0.1.0](docs/release/release-notes-v0.1.0.md)
+  - [Public Announcement Draft](docs/release/public-announcement.md)
+  - [Demo Script & Storyboard](docs/release/demo-script.md)
+  - [Feedback & Triage Guide](docs/release/feedback-and-triage-guide.md)
+- Community & Support: [`.github/SUPPORT.md`](.github/SUPPORT.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Live tracker: [`PROGRESS.md`](PROGRESS.md)
+
+---
+
+## User Quick Start
+
+### 1. Initialize DevContext in your project
+```bash
+devcontext init
+```
+
+### 2. Record an Architectural Decision (ADR)
+```bash
+devcontext decision add "ADR-001: Adopt Embedded SQLite with WAL" \
+  -c "Need zero-dependency persistent storage across process restarts." \
+  -d "Adopt embedded SQLite with Write-Ahead Logging." \
+  -C "Single-file durability with zero external services." \
+  -t "storage" -t "sqlite"
+```
+
+### 3. Capture a Developer Note
+```bash
+devcontext note add "Task Dispatch Loop Priority" \
+  -c "Worker threads consume tasks from ring buffer slots without lock contention." \
+  -C "architecture" \
+  -t "scheduling" -t "core"
+```
+
+### 4. Search Your Project Memory (SQLite FTS5)
+```bash
+devcontext search "sqlite"
+```
+
+### 5. Inspect the Unified Timeline
+```bash
+devcontext timeline
+```
 
 ---
 

@@ -13,8 +13,18 @@
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other",
-    "Productivity"
+    "Productivity",
+    "Other"
+  ],
+  "keywords": [
+    "project-memory",
+    "adr",
+    "architecture-decisions",
+    "developer-notes",
+    "local-first",
+    "git",
+    "timeline",
+    "privacy"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [

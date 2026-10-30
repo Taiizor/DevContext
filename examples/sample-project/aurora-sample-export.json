@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0.0",
+  "exported_at": "2026-10-31T00:00:00Z",
+  "generator": {
+    "name": "devcontext-core",
+    "version": "0.1.0"
+  },
+  "project": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "name": "Aurora Workflow Engine",
+    "created_at": "2026-10-30T10:00:00Z",
+    "vcs": {
+      "type": "git",
+      "root_identifier": "aurora-engine"
+    }
+  },
+  "records": [
+    {
+      "id": "a0000001-0000-0000-0000-000000000001",
+      "record_type": "note",
+      "title": "Task Dispatch Loop & Priority Scheduling",
+      "created_at": "2026-10-30T10:15:00Z",
+      "updated_at": "2026-10-30T10:15:00Z",
+      "tags": ["architecture", "scheduling", "core"],
+      "references": [
+        {
+          "id": "b0000001-0000-0000-0000-000000000001",
+          "ref_type": "file",
+          "target": "./src/dispatcher.rs#L42-L78",
+          "label": "Dispatch loop implementation"
+        },
+        {
+          "id": "b0000001-0000-0000-0000-000000000002",
+          "ref_type": "url",
+          "target": "https://example.com/docs/aurora-dispatch-spec",
+          "label": "External Specification"
+        }
+      ],
+      "payload": {
+        "content_markdown": "### Task Dispatch Loop\n\nThe central dispatch loop polls the prioritized task queue using multi-level feedback scheduling. Priority bands are partitioned into:\n\n1. **Critical:** System health and heartbeat checks.\n2. **High:** Real-time stream processing workflows.\n3. **Default:** Standard batch analytical tasks.\n\nWorker threads consume tasks from ring buffer slots without cross-thread lock contention.",
+        "category": "architecture",
+        "is_pinned": true,
+        "is_archived": false
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000002",
+      "record_type": "decision",
+      "title": "ADR-001: Adopt Embedded SQLite with WAL for Job Persistence",
+      "created_at": "2026-10-30T10:30:00Z",
+      "updated_at": "2026-10-30T10:30:00Z",
+      "tags": ["storage", "sqlite", "adr"],
+      "references": [
+        {
+          "id": "b0000001-0000-0000-0000-000000000003",
+          "ref_type": "folder",
+          "target": "./crates/storage",
+          "label": "Storage crate location"
+        }
+      ],
+      "payload": {
+        "status": "accepted",
+        "context": "Aurora requires durable task persistence across process restarts without introducing complex external database infrastructure (such as Postgres or Redis) during local edge deployments.",
+        "decision": "Use embedded SQLite with Write-Ahead Logging (WAL) mode enabled, PRAGMA synchronous = NORMAL, and a 5-second busy timeout for concurrent multi-thread reads and writes.",
+        "consequences": "Single-file durability with zero external services. Reads never block writers and writers never block readers. SQLite FTS5 enables local instant searching across task logs.",
+        "alternatives_considered": "1. In-memory hash map with periodic JSON dumping (risk of data loss).\n2. External PostgreSQL container (violates zero-dependency requirement).",
+        "superseded_by": null
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000003",
+      "record_type": "decision",
+      "title": "ADR-002: In-Memory Ring Buffer for Task Event Streaming",
+      "created_at": "2026-10-30T11:00:00Z",
+      "updated_at": "2026-10-30T11:00:00Z",
+      "tags": ["events", "buffer", "adr"],
+      "references": [
+        {
+          "id": "b0000001-0000-0000-0000-000000000004",
+          "ref_type": "file",
+          "target": "./crates/queue/src/ring_buffer.rs",
+          "label": "Lock-free ring buffer implementation"
+        }
+      ],
+      "payload": {
+        "status": "accepted",
+        "context": "High-throughput task state transitions produce up to 50,000 events/second. Writing every transient transition directly to disk creates I/O bottlenecks.",
+        "decision": "Buffer state transitions in a bounded, lock-free ring buffer before batch flushing to SQLite in transactional page chunks.",
+        "consequences": "Sub-millisecond event ingestion latency. Memory usage is strictly bounded by buffer capacity.",
+        "alternatives_considered": "Unbounded mpsc channels (risk of out-of-memory under backpressure).",
+        "superseded_by": null
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000004",
+      "record_type": "milestone",
+      "title": "v1.0 Dispatcher Stabilization",
+      "created_at": "2026-10-30T11:30:00Z",
+      "updated_at": "2026-10-30T16:00:00Z",
+      "tags": ["milestone", "release", "v1.0"],
+      "references": [],
+      "payload": {
+        "status": "completed",
+        "target_date": "2026-11-01T00:00:00Z",
+        "completed_date": "2026-10-30T16:00:00Z",
+        "description": "Stabilize core task dispatch loops, concurrency primitives, and crash recovery routines."
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000005",
+      "record_type": "milestone",
+      "title": "v1.1 Metrics Pipeline & Local Observability",
+      "created_at": "2026-10-30T11:45:00Z",
+      "updated_at": "2026-10-30T11:45:00Z",
+      "tags": ["milestone", "observability", "v1.1"],
+      "references": [],
+      "payload": {
+        "status": "active",
+        "target_date": "2026-12-01T00:00:00Z",
+        "completed_date": null,
+        "description": "Introduce zero-telemetry local performance histograms and queue depth tracking."
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000006",
+      "record_type": "log_entry",
+      "title": "Resolved worker thread starvation under heavy load",
+      "created_at": "2026-10-30T14:20:00Z",
+      "updated_at": "2026-10-30T14:20:00Z",
+      "tags": ["bugfix", "concurrency", "worker"],
+      "references": [
+        {
+          "id": "b0000001-0000-0000-0000-000000000005",
+          "ref_type": "git_commit",
+          "target": "c0ffee0123456789abcdef0123456789abcdef01",
+          "label": "Fix worker starvation commit"
+        }
+      ],
+      "payload": {
+        "event_date": "2026-10-30T14:20:00Z",
+        "summary": "Fixed worker thread starvation under unbalanced priority queues.",
+        "details": "When high-priority queues experienced sustained spikes, default-priority workers starved. Implemented fair round-robin scheduling yielding CPU cycles after 5 consecutive high-priority executions."
+      }
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000007",
+      "record_type": "saved_command",
+      "title": "Run Aurora integration test suite",
+      "created_at": "2026-10-30T15:00:00Z",
+      "updated_at": "2026-10-30T15:00:00Z",
+      "tags": ["testing", "cli"],
+      "references": [],
+      "payload": {
+        "command_text": "cargo test -p aurora-engine --test integration_suite -- --nocapture",
+        "explanation": "Executes full multi-worker integration test suite with live console tracing output.",
+        "working_directory": "."
+      }
+    }
+  ]
+}

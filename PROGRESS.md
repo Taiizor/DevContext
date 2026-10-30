@@ -8,11 +8,11 @@
 
 ## Project status
 
--   **Current phase:** Phase 8 --- Quality and release readiness (Complete - Awaiting Review)
--   **Overall status:** Phase 8 verification complete; release candidate ready for review
+-   **Current phase:** Phase 9 --- Public MVP release (Prepared for Publication - Awaiting Approval Gates)
+-   **Overall status:** Release artifacts built, verified, and packaged; awaiting publication authorization
 -   **Last updated:** 2026-10-31
--   **Current milestone:** Release Candidate v0.1.0-rc1 (Awaiting user review)
--   **Current blocker:** None recorded
+-   **Current milestone:** Public MVP Release v0.1.0
+-   **Current blocker:** None recorded (Publication approval gates pending user authorization)
 
 ### Status legend
 
@@ -35,7 +35,7 @@
   6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 62 TS tests
   7\. Export/import and data safety           Complete      2026-10-30        Versioned JSON, Markdown hierarchy, ZIP archives, inspection, conflict resolution, pre-operation backups, Zip Slip protections, CLI & VS Code UI
   8\. Quality and release readiness           Complete      2026-10-31        Multi-platform CI matrix, 10k search benchmark (<105ms), startup (<15ms), a11y tree items, release docs & RC checklist
-  9\. Public MVP release                      Not started   ---               
+  9\. Public MVP release                      In progress   ---               Artifacts packaged, docs & samples ready, awaiting publication approval gates
 
 ------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 8 quality, accessibility, performance, and documentation verification complete. Ready for Phase 8 review and acceptance.
+-   Phase 9 release artifacts (Windows x64 zip, VS Code VSIX, SHA256 checksums), documentation suite, sample project dataset, and community templates prepared. Awaiting user authorization for public publication approval gates.
 
 ## Blockers and risks
 
@@ -356,17 +356,53 @@
 
 ## Phase 9 --- Public MVP release
 
--   [ ] Publish source repository.
--   [ ] Publish VS Code extension.
--   [ ] Publish CLI binaries.
--   [ ] Publish documentation and examples.
--   [ ] Add sample project data.
--   [ ] Add issue templates and support guidelines.
--   [ ] Publish release announcement/demo.
--   [ ] Triage early feedback.
--   [ ] Prioritize reproducible bugs.
+-   [/] Publish source repository (Prepared for publication: README, dual licenses, security policy, and contributing guidelines verified; awaiting user approval to make public / push).
+-   [/] Publish VS Code extension (Prepared for publication: devcontext-0.1.0.vsix built, verified with clean install; awaiting user approval for Marketplace publish).
+-   [/] Publish CLI binaries (Prepared for publication: Windows x64 zip and SHA256 checksums packaged in dist/release/; .github/workflows/release.yml configured; awaiting user approval for GitHub Release).
+-   [x] Publish documentation and examples (Completed: docs/user/quickstart-and-workflows.md, installation, troubleshooting, backup, privacy).
+-   [x] Add sample project data (Completed: examples/sample-project/aurora-sample-export.json, README, and automated integration test).
+-   [x] Add issue templates and support guidelines (Completed: bug_report.md, feature_request.md, documentation.md, and .github/SUPPORT.md).
+-   [/] Publish release announcement/demo (Prepared for publication: docs/release/public-announcement.md and docs/release/demo-script.md ready; broadcast pending approval).
+-   [/] Triage early feedback (Framework established: docs/release/feedback-and-triage-guide.md; awaiting incoming reports post-release).
+-   [/] Prioritize reproducible bugs (Framework established: docs/release/feedback-and-triage-guide.md).
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- **Public Source Repository Readiness:**
+  - Audited `README.md`, `LICENSE-MIT`, `LICENSE-APACHE`, `SECURITY.md`, `CONTRIBUTING.md`, and `CODE_OF_CONDUCT.md`. Verified consistent naming, dual MIT/Apache-2.0 licensing, and private vulnerability disclosure instructions.
+  - Zero secrets, local databases, or machine-specific credentials present in the working tree.
+- **VS Code Extension Release Packaging:**
+  - Manifest (`package.json`) verified: `publisher: devcontext`, `name: devcontext`, `version: 0.1.0`, `engines.vscode: ^1.85.0`, `categories: ["Productivity", "Other"]`, and relevant discovery keywords.
+  - Built production bundle (`dist/extension.js`, 74.64 KB) and packaged `apps/vscode-extension/devcontext-0.1.0.vsix` (20.66 KB, 8 files total, zero development or test files included).
+  - VSIX test-installed into isolated VS Code profile (`code --install-extension devcontext-0.1.0.vsix --force`) and verified via `code --list-extensions`.
+- **CLI Release Artifacts & Checksums (`dist/release/`):**
+  - Compiled release binary: `target/release/devcontext.exe` (4.05 MB).
+  - Smoke tests verified: `--help`, `--version`, `doctor`, `init`, note CRUD, decision CRUD, FTS5 search, timeline, and export/import.
+  - Packaged Windows release archive: `devcontext-v0.1.0-windows-x64.zip` (1.90 MB, containing `devcontext.exe`, `README.md`, `LICENSE-MIT`, `LICENSE-APACHE`).
+  - Multi-platform GitHub Actions release workflow created at `.github/workflows/release.yml` covering Windows x64, Linux x64, macOS Intel x64, and macOS Apple Silicon aarch64.
+  - SHA-256 Checksums (`dist/release/SHA256SUMS.txt`):
+    - `826196095ed3a44aca254e06c39c63ae1cd4b108aaaa2c47a351f6b2fad20a25`  `devcontext-v0.1.0-windows-x64.zip`
+    - `fe2a0636db11ab03231a5c2b0e27236a504c949b5544b3279c6e9bf904e86087`  `devcontext-0.1.0.vsix`
+    - `8fc0a98302559a317bd19baddea8c98b897b575eb95ceb7371464e0e8fdcc487`  `devcontext.exe`
+- **Documentation and Workflow Examples:**
+  - Created comprehensive user guide: `docs/user/quickstart-and-workflows.md` covering end-to-end CLI and VS Code workflows, references, search, timeline, export/import, and disaster recovery.
+- **Sample Project Dataset (`examples/sample-project/`):**
+  - Created `aurora-sample-export.json` (7 records: 1 note, 2 ADRs, 2 milestones, 1 log entry, 1 saved command) adhering to `schemas/export-v1.schema.json`.
+  - Created guide `examples/sample-project/README.md` with inspect, import, search, and cleanup instructions.
+  - Automated integration test `sample_project_test.rs` validates parsing, inspection, importing, FTS5 searching, and safe deletion.
+- **Issue Templates & Community Guidelines:**
+  - Created `.github/SUPPORT.md` outlining triage guidelines, privacy warnings, and response expectations.
+  - Refined `.github/ISSUE_TEMPLATE/bug_report.md` with explicit warnings against pasting credentials, tokens, or raw databases, and redirection to `SECURITY.md`.
+  - Refined `.github/ISSUE_TEMPLATE/feature_request.md` with local-first and privacy assessment.
+  - Created `.github/ISSUE_TEMPLATE/documentation.md`.
+- **Public Announcement and Demo Script:**
+  - Created `docs/release/public-announcement.md` (concise release announcement draft).
+  - Created `docs/release/demo-script.md` (privacy-safe 6-scene demo script and screenshot requirements).
+  - Created `docs/release/feedback-and-triage-guide.md` (zero-telemetry feedback taxonomy and triage workflow).
+- **Test Suites Clean Pass:**
+  - Rust workspace: 110 tests passed, 0 failed (`cargo test --workspace`).
+  - VS Code extension: 68 tests passed, 0 failed (`cd apps/vscode-extension && bun test`).
+  - TypeScript type-check: 0 errors (`bun run typecheck`).
+  - Formatting & lints: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` 0 warnings.
 
 ------------------------------------------------------------------------
 
@@ -376,6 +412,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-31   Phase 9: Public MVP Release Preparation    Packaged CLI release archive and SHA256 checksums, prepared production VSIX, added sample project dataset (Aurora Engine) with automated integration test, created Quickstart guide, support guidelines (.github/SUPPORT.md), issue templates, announcement draft, demo script, and triage guide. 110 Rust tests + 68 TS tests passing. Publication approval gates documented.
   2026-10-31   Phase 8: Quality & Release Readiness       Conducted cross-platform CI matrix verification (Win/Mac/Linux), added edge case tests (spaces, non-ASCII/Turkish paths, non-git, multi-root isolation, corruption), 10k-record FTS5 search benchmark, CLI cold-start latency measurements, accessibility treeitem metadata across VS Code views, release docs, user guides, changelog, and VSIX/binary builds. 109 Rust tests + 68 TS tests (Bun) passing. GitHub Actions CI run 41129383061 (all 6 jobs succeeded).
   2026-10-30   Phase 7: Export/Import & Data Safety       Implemented versioned JSON (export-v1.json), human-readable Markdown hierarchy, portable ZIP archives, path sanitization/redaction, conflict strategies, dry-run, pre-import/pre-delete automatic backups, data inspection, complete deletion, and VS Code commands. 84 Rust tests + 68 TS tests (Bun) + Real VS Code Extension Host (exit code 0) passing.
   2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions including real Git commit diffs, status bar, and test suite). Real Extension Host verification + 62 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
