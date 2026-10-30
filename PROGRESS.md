@@ -303,65 +303,56 @@
 ## Phase 8 --- Quality and release readiness
 
 -   [x] Test Windows, Linux, and macOS.
--   [x] Test supported VS Code versions.
+-   [/] Test supported VS Code versions (Partially verified: compile-time @types/vscode ^1.85.0 and current VS Code runtime verified; historical 1.85 binary download deferred).
 -   [x] Test spaces and non-ASCII paths.
 -   [x] Test read-only workspaces.
--   [x] Test network drives where supported.
--   [x] Test large repositories.
+-   [/] Test network drives where supported (Partially verified: local UNC share loopback verified; remote physical SMB server unavailable in local environment).
+-   [x] Test large repositories (Verified: 2,000-commit repository benchmarked).
 -   [x] Test no-Git and multi-root workspaces.
 -   [x] Test database lock and recovery.
--   [x] Test upgrade paths.
+-   [/] Test upgrade paths (Partially verified: schema migrations v1->v2 verified; full app upgrade is N/A prior to initial release).
 -   [x] Audit logs for sensitive data.
 -   [x] Audit file and process operations.
--   [x] Review keyboard navigation and accessibility.
+-   [/] Review keyboard navigation and accessibility (Partially verified: source-level TreeItem accessibilityInformation and theme tokens verified; external auditory screen reader deferred).
 -   [x] Review theme compatibility and contrast.
 -   [x] Measure startup and command latency.
 -   [x] Write troubleshooting guide.
 -   [x] Prepare changelog and release notes.
 -   [x] Prepare Marketplace listing and screenshots.
--   [x] Complete release-candidate feedback cycle.
+-   [/] Complete release-candidate feedback cycle (Partially verified: internal clean-profile install and workflows verified; external public feedback deferred to Phase 9).
 
 **Verification evidence:**
 - **Cross-Platform Compatibility:**
   - Automated CI matrix verified across Windows (`windows-latest`), Linux (`ubuntu-latest`), and macOS (`macos-latest` ARM64) on GitHub Actions (Run ID `41129383061`, all 6 jobs succeeded).
   - Manual and integration verification performed on Windows 11 Pro 64-bit with PowerShell 7.6.6 and Bun 1.4.4.
   - Forward-slash path handling, case preservation, and UNC path validation verified across all file and reference utilities.
-- **Edge Cases & Workspace Isolation (`edge_cases_and_workspaces_test.rs`):**
+- **Network Drives & Edge Cases (`edge_cases_and_workspaces_test.rs` & UNC tests):**
+  - Network share workspace: Initialized and executed note CRUD, status, and search on local Windows UNC path (`\\localhost\C$\...`). Inaccessible network paths (`\\nonexistent_host_xyz\...`) return structured `IO_ERROR` (OS error 53) without hanging or panicking.
+  - Large Git repositories: Tested repository with 2,000 commits generated via `git fast-import`. `devcontext timeline --limit 50` returned in 131.34 ms; unbounded timeline retrieved within 134.76 ms respecting the 1,000-commit safety cap (`DEFAULT_MAX_COMMITS_UNBOUNDED`) with `is_truncated: true`.
   - Path with spaces (`test_workspace_with_spaces_in_path`): Project initialization, note/decision CRUD, search indexing, and export succeed in paths containing multiple space characters.
   - Unicode and non-ASCII paths (`test_workspace_with_unicode_and_turkish_path`): Full functionality verified in Turkish/Unicode folder names (`proje-geliştirme-dizini/proje-klasörü`).
   - Non-Git repositories (`test_non_git_workspace_lifecycle`): DevContext operates seamlessly in standalone folders without Git; timeline and git metadata degrade cleanly without errors.
   - Multi-root workspace isolation (`test_multi_root_workspace_strict_isolation`): Multiple independent projects maintain separate SQLite databases, schemas, records, and search indexes without data bleeding or cross-contamination.
+  - Database locking: Concurrency verified under WAL mode (readers not blocked by active uncommitted writers). Exclusive lock timeouts safely trigger `DATABASE_ERROR: database is locked` after busy-timeout without crashing.
   - Corruption handling (`test_database_corruption_detection_and_safe_reporting`): Corrupted database headers or invalid SQLite files trigger actionable errors without process panics.
   - Schema migration idempotence (`test_schema_migration_idempotence_and_preservation`): Repeated migration cycles on existing databases preserve existing records, schema integrity, and search indexes.
-- **Scale and Search Benchmark (`performance_and_scale_test.rs`):**
-  - Generated 10,000 realistic records with titles, Markdown bodies, and tags in SQLite FTS5.
-  - Search latency across 10 distinct queries: Min = 81.26ms, Avg = 102.13ms, Max = 134.85ms (Target: <300ms, achieved ~3x faster).
-  - CLI cold startup latency (`devcontext --help`): Avg = 13.70ms (Target: <200ms, achieved ~14x faster).
-  - CLI project status latency (`devcontext status --json`): Avg = 13.31ms.
+- **Scale and Search Benchmark (`performance_and_scale_test.rs` & startup benchmarks):**
+  - Search latency on 10,000 records (SQLite FTS5, BM25 ranking, snippet extraction across 10 queries): Min = 81.26ms, Avg = 102.13ms, Max = 134.85ms (Target: <300ms, achieved ~3x faster).
+  - CLI warm startup latency (`devcontext --help`, 10 measured runs after 2 warm-ups): Min = 10.60ms, Avg = 11.57ms, Max = 12.55ms (Target: <200ms, achieved ~17x faster).
+  - CLI warm status latency (`devcontext status --json`, 10 measured runs): Min = 14.58ms, Avg = 15.41ms, Max = 16.47ms.
+  - CLI cold startup simulation (fresh executable copy to bypass path cache): 340.11ms (including OS Defender/SmartScreen initial validation).
 - **Accessibility & Theme Tokens:**
   - Added explicit `accessibilityInformation` (`label` and `role: 'treeitem'`) across all VS Code tree items (`NoteItem`, `DecisionItem`, `TimelineTreeItem`, and `OverviewItem`) in `apps/vscode-extension/src/views/`.
   - All UI elements use semantic VS Code theme tokens (`charts.blue`, `testing.iconPassed`, `problemsWarningIcon.foreground`) adhering to high-contrast and dark/light theme standards.
 - **Security & Privacy Audit:**
   - Zero telemetry or network calls verified across core and extension.
   - Zero arbitrary command execution: `saved_commands` are passive text records only; no subprocess execution.
+  - Child processes spawned with `shell: false` and strict timeouts.
   - Path redaction and Zip Slip protection verified during export and import operations.
-- **Release Documentation & Artifacts:**
-  - `CHANGELOG.md`: Established changelog adhering to Keep a Changelog standard for version `[0.1.0-rc1]`.
-  - `docs/user/troubleshooting.md`: Comprehensive troubleshooting guide with common symptoms, causes, and solutions.
-  - `docs/user/installation-and-upgrade.md`: Detailed CLI and VS Code installation, setup, and upgrade instructions.
-  - `docs/user/backup-and-recovery.md`: Complete disaster recovery and backup guide.
-  - `docs/user/privacy-and-storage.md`: Architecture guide detailing zero-telemetry, local storage boundaries, and security model.
-  - `docs/release/marketplace-listing.md`: VS Code Marketplace description and category metadata.
-  - `docs/release/screenshots.md`: UI screenshot specification, scenarios, and visual checklist.
-  - `docs/release/release-notes-v0.1.0.md`: Comprehensive v0.1.0-rc1 release notes.
-  - `docs/release/release-candidate-checklist.md`: 12-section release candidate acceptance checklist.
+- **Release Candidate Artifacts & Workflow Verification:**
+  - VSIX package (`apps/vscode-extension/devcontext-0.1.0.vsix`) test-installed cleanly into isolated VS Code extensions directory (`code --install-extension --force`) and verified via `code --list-extensions`.
   - Standalone release binary built: `target/release/devcontext.exe` (4.05 MB).
-  - Packaged VS Code extension: `apps/vscode-extension/devcontext-0.1.0.vsix` (19.18 KB).
-- **Test Suites Clean Pass:**
-  - Rust workspace: 109 tests passed, 0 failed (`cargo test --workspace`).
-  - VS Code extension: 68 tests passed, 0 failed (`cd apps/vscode-extension && bun test`).
-  - TypeScript type-check: 0 errors (`bun run typecheck`).
-  - Lints & formatting: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` 0 warnings.
+  - Release documentation: `CHANGELOG.md`, `docs/user/`, and `docs/release/` complete.
 
 ## Phase 9 --- Public MVP release
 
