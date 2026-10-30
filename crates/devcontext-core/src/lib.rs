@@ -8,8 +8,10 @@ pub mod export;
 pub mod git;
 pub mod search;
 pub mod storage;
+pub mod workspace;
 
 pub use error::{CoreError, Result};
+pub use workspace::WorkspaceManager;
 
 /// Returns the semantic version of the core engine.
 pub fn version() -> &'static str {

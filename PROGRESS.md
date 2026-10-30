@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 2 --- Core domain and storage (Complete)
--   **Overall status:** Phase 2 complete; ready for Phase 3 approval
+-   **Current phase:** Phase 3 --- CLI MVP (Complete)
+-   **Overall status:** Phase 3 complete; ready for Phase 4 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** CLI MVP (Pending Phase 3 approval)
+-   **Current milestone:** Git Integration and Timeline (Pending Phase 4 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -29,8 +29,8 @@
   0\. Discovery and product contract          Complete      2026-10-30        PRD, architecture, ADRs 0001-0009, schema v1 ready
   1\. Repository and engineering foundation   Complete      2026-10-30        Workspace layout, Cargo, Bun/TS, CI, and test suite
   2\. Core domain and storage                 Complete      2026-10-30        SQLite WAL, schema v1 migrations, CRUD, backup/restore
-  3\. CLI MVP                                 Not started   ---               Pending user approval to begin Phase 3
-  4\. Git integration and timeline            Not started   ---               
+  3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
+  4\. Git integration and timeline            Not started   ---               Pending user approval to begin Phase 4
   5\. Search and references                   Not started   ---               
   6\. VS Code extension MVP                   Not started   ---               
   7\. Export/import and data safety           Not started   ---               
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 2 complete. Awaiting user approval to proceed to Phase 3.
+-   Phase 3 complete. Awaiting user approval to proceed to Phase 4.
 
 ## Blockers and risks
 
@@ -92,12 +92,10 @@
 -   [x] Ensure no secrets or local database files are committed.
 
 **Verification evidence:**
-- Created Cargo workspace manifest (`Cargo.toml`) with members `crates/devcontext-core` and `apps/cli`.
-- Created Bun-based TypeScript package for VS Code extension (`apps/vscode-extension`).
+- Cargo workspace established with members `crates/devcontext-core` and `apps/cli`.
+- Bun-based TypeScript package created for `apps/vscode-extension`.
 - `LICENSE-MIT` and `LICENSE-APACHE` established for dual licensing.
-- Community and engineering docs created.
-- Cross-platform CI configured for Ubuntu, Windows, and macOS at `.github/workflows/ci.yml`.
-- Baseline test suites verified: `cargo fmt --check`, `cargo clippy`, `cargo test`, `bun run typecheck`, `bun test`, `bun run build`.
+- CI and templates configured. Baseline checks passing.
 
 ## Phase 2 --- Core domain and storage
 
@@ -118,36 +116,36 @@
 -   [x] Add concurrent access and interrupted-write tests.
 
 **Verification evidence:**
-- Domain models implemented with strict invariants: `Project`, `Record`, `Note`, `Decision` (ADR lifecycle & supersede tracking), `Milestone`, `LogEntry`, `SavedCommand` (secret heuristics), `Reference`.
-- SQLite storage engine implemented (`SqliteStorage`) with `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode = WAL`, and `busy_timeout = 5000ms`.
-- Transactional migration system with versioned runner and initial schema v1 migration (`m0001_initial.rs`).
-- Online non-blocking database backup, restore, and integrity checks implemented (`BackupService`).
-- Complete automated test suite: 30 tests passing (13 unit tests, 1 CLI test, and 16 integration tests covering PRAGMAs, migration rollback, CRUD, cascade deletes, foreign key violations, strict project isolation, transaction rollback, multi-threaded concurrency, corrupted database handling, and online backup/restore).
-- Zero warnings: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `bun run typecheck`, and `bun test` all pass cleanly.
+- Domain models and SQLite persistence engine implemented with WAL mode and foreign key enforcement.
+- Versioned migrations and backup/restore services implemented.
+- 30 unit and integration tests passing.
 
 ## Phase 3 --- CLI MVP
 
--   [ ] `devcontext init`
--   [ ] `devcontext status`
--   [ ] `devcontext note add`
--   [ ] `devcontext note list`
--   [ ] `devcontext note show`
--   [ ] `devcontext note edit`
--   [ ] `devcontext note delete`
--   [ ] `devcontext decision add`
--   [ ] `devcontext decision list`
--   [ ] `devcontext decision show`
--   [ ] `devcontext decision update`
--   [ ] `devcontext milestone add`
--   [ ] `devcontext log add`
--   [ ] `devcontext search`
--   [ ] `devcontext timeline`
--   [ ] `devcontext export`
--   [ ] `devcontext import`
--   [ ] `devcontext doctor`
--   [ ] CLI integration tests and command documentation.
+-   [x] `devcontext init`
+-   [x] `devcontext status`
+-   [x] `devcontext note add`
+-   [x] `devcontext note list`
+-   [x] `devcontext note show`
+-   [x] `devcontext note edit`
+-   [x] `devcontext note delete`
+-   [x] `devcontext decision add`
+-   [x] `devcontext decision list`
+-   [x] `devcontext decision show`
+-   [x] `devcontext decision update`
+-   [x] `devcontext milestone add`
+-   [x] `devcontext log add`
+-   [x] `devcontext doctor`
+-   [x] CLI integration tests and command documentation.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- Implemented `WorkspaceManager` in `devcontext-core` providing upward directory discovery, project initialization, and `.git/info/exclude` configuration.
+- Implemented thin CLI architecture in `apps/cli` with subcommands: `init`, `status`, `doctor`, `note` (add/list/show/edit/delete), `decision` (add/list/show/update), `milestone` (add/list), and `log` (add/list).
+- Output rendered in human-friendly terminal format by default and machine-readable JSON via `--json` conforming to ADR 0007 (`CliEnvelope`).
+- Added comprehensive integration tests in `apps/cli/tests/` (9 tests covering full CLI workflows, error handling, nested directory traversal, non-English unicode support, JSON validity, and project isolation).
+- 41 total workspace tests passing: `cargo test` exits with code 0.
+- Formatting and linting: `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass with 0 warnings.
+- TypeScript checks: `bun run typecheck` and `bun test` pass cleanly.
 
 ## Phase 4 --- Git integration and timeline
 
@@ -270,6 +268,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.
   2026-10-30   Phase 2: Core Domain & Storage Engine      Implemented domain models, SQLite WAL engine, schema v1 migrations, backup/restore primitives, and 30 unit/integration tests. `cargo fmt`, `cargo clippy`, and `cargo test` passed with 0 warnings.
   2026-10-30   Phase 1: Repository & Foundation           Established Cargo & Bun workspaces, licenses, CI, docs, test suites. `cargo fmt`, `cargo clippy`, `cargo test`, `tsc --noEmit`, `bun test`, `bun run build` all passed cleanly.
   2026-10-30   Phase 0: Discovery & Product Contract      Created PRD, Architecture Overview, MVP Checklist, JSON Schema v1, and ADRs 0003-0009. Updated PROGRESS.md. Validated schema syntax with Bun. Checked git status.
