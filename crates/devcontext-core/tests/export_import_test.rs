@@ -909,13 +909,25 @@ fn test_sqlite_restore_failure_preserves_pre_restore_database() {
     // Initial note exists
     let initial_notes = storage.list_notes(project.id, false).unwrap();
     assert_eq!(initial_notes.len(), 1);
+    let note1_id = initial_notes[0].record.id;
+
+    // Add reference to initial note
+    let ref1 = devcontext_core::domain::Reference::new(
+        note1_id,
+        devcontext_core::domain::ReferenceType::Url,
+        "https://example.com/initial-ref",
+        Some("Initial Ref".to_string()),
+        None,
+    )
+    .unwrap();
+    storage.save_reference(&ref1).unwrap();
 
     // Create a valid backup of this initial state
     let backup_dir = root.join(".devcontext").join("backups");
     let valid_backup =
         BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
 
-    // Now mutate database: add a second note after the backup
+    // Now mutate database: add a second note and reference after the backup
     let note2 = Note::new(
         project.id,
         "Pre-Restore Note Added",
@@ -925,9 +937,30 @@ fn test_sqlite_restore_failure_preserves_pre_restore_database() {
     )
     .unwrap();
     storage.save_note(&note2).unwrap();
-    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 2);
+    let ref2 = devcontext_core::domain::Reference::new(
+        note2.record.id,
+        devcontext_core::domain::ReferenceType::GitCommit,
+        "a1b2c3d4e5f6",
+        Some("Commit Ref".to_string()),
+        None,
+    )
+    .unwrap();
+    storage.save_reference(&ref2).unwrap();
 
-    // Inject failure during restore after staging is complete
+    assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 2);
+    assert_eq!(
+        storage.list_references_for_record(note1_id).unwrap().len(),
+        1
+    );
+    assert_eq!(
+        storage
+            .list_references_for_record(note2.record.id)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Inject failure during restore: exactly 1 page batch is transferred before failure is triggered
     let restore_res =
         BackupService::restore_to_storage_with_injected_failure(&valid_backup, &storage);
     assert!(
@@ -935,13 +968,37 @@ fn test_sqlite_restore_failure_preserves_pre_restore_database() {
         "Must fail when failure is injected during restore"
     );
 
-    // 1. Verify original database remains valid and its pre-restore records remain accessible
+    let err_msg = restore_res.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("after writing 1 page"),
+        "Error message must prove write occurred before failure: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("remaining:"),
+        "Error message must contain remaining page count: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("total:"),
+        "Error message must contain total page count: {}",
+        err_msg
+    );
+
+    // 1. Verify original database remains valid and all pre-restore records and references remain accessible
     let notes_after_failed_restore = storage.list_notes(project.id, false).unwrap();
     assert_eq!(
         notes_after_failed_restore.len(),
         2,
         "Pre-restore records must remain accessible after failed restore"
     );
+    let refs1_after = storage.list_references_for_record(note1_id).unwrap();
+    assert_eq!(refs1_after.len(), 1);
+    assert_eq!(refs1_after[0].target, "https://example.com/initial-ref");
+
+    let refs2_after = storage.list_references_for_record(note2.record.id).unwrap();
+    assert_eq!(refs2_after.len(), 1);
+    assert_eq!(refs2_after[0].target, "a1b2c3d4e5f6");
 
     // 2. Verify PRAGMA integrity_check succeeds on storage
     let integrity = BackupService::verify_integrity(&storage).unwrap();
@@ -957,7 +1014,24 @@ fn test_sqlite_restore_failure_preserves_pre_restore_database() {
     )
     .unwrap();
     storage.save_note(&note3).unwrap();
+    let ref3 = devcontext_core::domain::Reference::new(
+        note3.record.id,
+        devcontext_core::domain::ReferenceType::File,
+        "src/main.rs",
+        Some("File Ref".to_string()),
+        None,
+    )
+    .unwrap();
+    storage.save_reference(&ref3).unwrap();
+
     assert_eq!(storage.list_notes(project.id, false).unwrap().len(), 3);
+    assert_eq!(
+        storage
+            .list_references_for_record(note3.record.id)
+            .unwrap()
+            .len(),
+        1
+    );
 
     // 4. Verify no unintended temporary files remain in .devcontext
     let devcontext_dir = root.join(".devcontext");
@@ -975,6 +1049,94 @@ fn test_sqlite_restore_failure_preserves_pre_restore_database() {
             name
         );
     }
+}
+
+#[test]
+fn test_sqlite_rollback_failure_preserves_emergency_snapshot_and_dual_error() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    let initial_notes = storage.list_notes(project.id, false).unwrap();
+    assert_eq!(initial_notes.len(), 1);
+
+    // Create a valid backup
+    let backup_dir = root.join(".devcontext").join("backups");
+    let valid_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
+
+    // Call restore with injected failure during BOTH restore and rollback
+    let res =
+        BackupService::restore_to_storage_with_injected_rollback_failure(&valid_backup, &storage);
+
+    assert!(res.is_err(), "Must return Err when rollback also fails");
+    let err_msg = res.unwrap_err().to_string();
+
+    // Verify dual-error message and manual recovery instructions
+    assert!(
+        err_msg.contains("CRITICAL: Restore failed"),
+        "Error must report CRITICAL restore failure: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected restore failure after writing 1 page"),
+        "Original restore error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("AND automatic rollback also failed"),
+        "Rollback failure must be stated: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected rollback stepping failure"),
+        "Rollback root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Database is in an unverified state and requires manual recovery"),
+        "Must inform user that manual recovery is required: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Emergency safety snapshot preserved at:"),
+        "Must specify location of emergency snapshot: {}",
+        err_msg
+    );
+
+    // Extract the emergency snapshot path from the error message
+    let marker = "Emergency safety snapshot preserved at: ";
+    let idx = err_msg.find(marker).expect("marker must be found");
+    let preserved_path_str = &err_msg[idx + marker.len()..];
+    let preserved_path = std::path::Path::new(preserved_path_str.trim());
+
+    // Verify the emergency file physically exists on disk and is non-empty
+    assert!(
+        preserved_path.exists(),
+        "Emergency snapshot file must exist on disk at {}",
+        preserved_path_str
+    );
+    let metadata = fs::metadata(preserved_path).unwrap();
+    assert!(
+        metadata.len() > 0,
+        "Emergency snapshot must be a valid non-empty file"
+    );
+
+    // Verify file integrity of the emergency snapshot
+    assert!(
+        BackupService::verify_file_integrity(preserved_path).is_ok(),
+        "Emergency snapshot must pass integrity check"
+    );
+
+    // Verify that data can be read from the emergency snapshot file
+    let conn = rusqlite::Connection::open(preserved_path).unwrap();
+    let note_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(
+        note_count, 1,
+        "Emergency snapshot must preserve the original database content"
+    );
 }
 
 #[test]

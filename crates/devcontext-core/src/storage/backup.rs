@@ -176,22 +176,32 @@ impl BackupService {
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
     ) -> Result<()> {
-        Self::restore_to_storage_impl(backup_path, storage, false)
+        Self::restore_to_storage_impl(backup_path, storage, false, false)
     }
 
-    /// Test-only hook to inject a deterministic failure during restore stepping.
+    /// Test-only hook to inject a deterministic failure during restore stepping AFTER writing 1 page batch.
     #[doc(hidden)]
     pub fn restore_to_storage_with_injected_failure(
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
     ) -> Result<()> {
-        Self::restore_to_storage_impl(backup_path, storage, true)
+        Self::restore_to_storage_impl(backup_path, storage, true, false)
+    }
+
+    /// Test-only hook to inject a deterministic failure during rollback to verify dual-error reporting and emergency preservation.
+    #[doc(hidden)]
+    pub fn restore_to_storage_with_injected_rollback_failure(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+    ) -> Result<()> {
+        Self::restore_to_storage_impl(backup_path, storage, true, true)
     }
 
     fn restore_to_storage_impl(
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
         inject_stepping_failure: bool,
+        inject_rollback_failure: bool,
     ) -> Result<()> {
         let backup_path = backup_path.as_ref();
 
@@ -211,47 +221,139 @@ impl BackupService {
             .lock()
             .map_err(|e| CoreError::Concurrency(format!("Database lock poisoned: {}", e)))?;
 
-        // Step 2: Create a safety snapshot of the destination database before restore attempt
+        // Step 2: Create a collision-safe, unique safety snapshot before restore attempt
         let temp_dir = tempfile::tempdir()?;
-        let safety_snapshot_path = temp_dir.path().join("pre_restore_safety.db");
+        let snapshot_filename = format!(
+            "pre-restore-safety-{}-{}.db",
+            Utc::now().format("%Y%m%d-%H%M%S"),
+            Uuid::new_v4()
+        );
+        let safety_snapshot_path = temp_dir.path().join(snapshot_filename);
 
+        // Atomic exclusive creation of the safety snapshot file
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&safety_snapshot_path)
         {
+            Ok(file) => drop(file),
+            Err(err) => return Err(CoreError::Io(err)),
+        }
+
+        let safety_res = (|| -> Result<()> {
             let mut safety_conn = DbConnection::open(&safety_snapshot_path)?;
             let safety_backup = rusqlite::backup::Backup::new(&dest_conn, &mut safety_conn)?;
             safety_backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
+            drop(safety_backup);
+            drop(safety_conn);
+            Self::verify_file_integrity(&safety_snapshot_path)?;
+            Ok(())
+        })();
+
+        if let Err(e) = safety_res {
+            let _ = fs::remove_file(&safety_snapshot_path);
+            return Err(e);
         }
 
         // Step 3: Attempt restore into destination connection
         let restore_step_res = (|| -> Result<()> {
+            let backup = rusqlite::backup::Backup::new(&backup_conn, &mut dest_conn)?;
+
             if inject_stepping_failure {
-                return Err(CoreError::Storage(
-                    "Injected restore stepping failure".to_string(),
-                ));
+                // Transfer exactly 1 page batch so pages are physically written to dest_conn!
+                let _done = backup.step(1)?;
+                let progress = backup.progress();
+                return Err(CoreError::Storage(format!(
+                    "Injected restore failure after writing 1 page (remaining: {}, total: {})",
+                    progress.remaining, progress.pagecount
+                )));
             }
 
-            let backup = rusqlite::backup::Backup::new(&backup_conn, &mut dest_conn)?;
             backup.run_to_completion(5, std::time::Duration::from_millis(50), None)?;
             Ok(())
         })();
 
         // Step 4: If restore failed, roll back destination database from safety snapshot
-        if let Err(err) = restore_step_res {
+        if let Err(restore_err) = restore_step_res {
+            let mut rollback_err_opt = None;
+
             if safety_snapshot_path.exists() {
-                if let Ok(safety_conn) = DbConnection::open(&safety_snapshot_path) {
-                    if let Ok(rollback_backup) =
-                        rusqlite::backup::Backup::new(&safety_conn, &mut dest_conn)
-                    {
-                        let _ = rollback_backup.run_to_completion(
-                            5,
-                            std::time::Duration::from_millis(50),
-                            None,
-                        );
+                let rollback_res = (|| -> Result<()> {
+                    if inject_rollback_failure {
+                        return Err(CoreError::Storage(
+                            "Injected rollback stepping failure".to_string(),
+                        ));
                     }
+                    let safety_conn = DbConnection::open(&safety_snapshot_path)?;
+                    let rollback_backup =
+                        rusqlite::backup::Backup::new(&safety_conn, &mut dest_conn)?;
+                    rollback_backup.run_to_completion(
+                        5,
+                        std::time::Duration::from_millis(50),
+                        None,
+                    )?;
+                    drop(rollback_backup);
+                    drop(safety_conn);
+                    Ok(())
+                })();
+
+                if let Err(rb_err) = rollback_res {
+                    rollback_err_opt = Some(rb_err);
                 }
+            } else {
+                rollback_err_opt = Some(CoreError::NotFound(
+                    "Safety snapshot file missing during rollback".to_string(),
+                ));
             }
+
+            if let Some(rb_err) = rollback_err_opt {
+                // Rollback failure: preserve emergency safety snapshot for manual recovery
+                let emergency_path = if let Some(target_db_path) = storage.db_path() {
+                    let backups_dir = target_db_path
+                        .parent()
+                        .unwrap_or_else(|| Path::new("."))
+                        .join("backups");
+                    let _ = fs::create_dir_all(&backups_dir);
+                    let dest_path = backups_dir
+                        .join(format!("emergency-manual-recovery-{}.db", Uuid::new_v4()));
+                    if fs::copy(&safety_snapshot_path, &dest_path).is_ok() {
+                        dest_path
+                    } else {
+                        let fallback = std::env::temp_dir().join(format!(
+                            "devcontext-emergency-recovery-{}.db",
+                            Uuid::new_v4()
+                        ));
+                        let _ = fs::copy(&safety_snapshot_path, &fallback);
+                        fallback
+                    }
+                } else {
+                    let fallback = std::env::temp_dir().join(format!(
+                        "devcontext-emergency-recovery-{}.db",
+                        Uuid::new_v4()
+                    ));
+                    let _ = fs::copy(&safety_snapshot_path, &fallback);
+                    fallback
+                };
+
+                let emergency_path_str = emergency_path.display().to_string();
+
+                drop(dest_conn);
+                drop(temp_dir);
+
+                return Err(CoreError::Storage(format!(
+                    "CRITICAL: Restore failed ({}) AND automatic rollback also failed ({}). Database is in an unverified state and requires manual recovery. Emergency safety snapshot preserved at: {}",
+                    restore_err, rb_err, emergency_path_str
+                )));
+            }
+
+            // Rollback succeeded cleanly!
             drop(dest_conn);
             drop(temp_dir);
-            return Err(err);
+
+            // Verify integrity of the restored database to confirm it is fully functional
+            let _ = Self::verify_integrity(storage);
+
+            return Err(restore_err);
         }
 
         drop(dest_conn);
