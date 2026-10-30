@@ -3,6 +3,7 @@ use crate::storage::connection::DbConnection;
 use crate::storage::sqlite_storage::SqliteStorage;
 use chrono::Utc;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -176,7 +177,7 @@ impl BackupService {
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
     ) -> Result<()> {
-        Self::restore_to_storage_impl(backup_path, storage, false, false)
+        Self::restore_to_storage_impl(backup_path, storage, false, false, false, false)
     }
 
     /// Test-only hook to inject a deterministic failure during restore stepping AFTER writing 1 page batch.
@@ -185,7 +186,7 @@ impl BackupService {
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
     ) -> Result<()> {
-        Self::restore_to_storage_impl(backup_path, storage, true, false)
+        Self::restore_to_storage_impl(backup_path, storage, true, false, false, false)
     }
 
     /// Test-only hook to inject a deterministic failure during rollback to verify dual-error reporting and emergency preservation.
@@ -194,7 +195,25 @@ impl BackupService {
         backup_path: impl AsRef<Path>,
         storage: &SqliteStorage,
     ) -> Result<()> {
-        Self::restore_to_storage_impl(backup_path, storage, true, true)
+        Self::restore_to_storage_impl(backup_path, storage, true, true, false, false)
+    }
+
+    /// Test-only hook to inject a failure when creating the emergency snapshot destination file.
+    #[doc(hidden)]
+    pub fn restore_to_storage_with_injected_emergency_creation_failure(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+    ) -> Result<()> {
+        Self::restore_to_storage_impl(backup_path, storage, true, true, true, false)
+    }
+
+    /// Test-only hook to inject a failure during emergency copy after writing partial output.
+    #[doc(hidden)]
+    pub fn restore_to_storage_with_injected_emergency_partial_copy_failure(
+        backup_path: impl AsRef<Path>,
+        storage: &SqliteStorage,
+    ) -> Result<()> {
+        Self::restore_to_storage_impl(backup_path, storage, true, true, false, true)
     }
 
     fn restore_to_storage_impl(
@@ -202,6 +221,8 @@ impl BackupService {
         storage: &SqliteStorage,
         inject_stepping_failure: bool,
         inject_rollback_failure: bool,
+        inject_emergency_creation_failure: bool,
+        inject_emergency_partial_copy_failure: bool,
     ) -> Result<()> {
         let backup_path = backup_path.as_ref();
 
@@ -228,7 +249,7 @@ impl BackupService {
             Utc::now().format("%Y%m%d-%H%M%S"),
             Uuid::new_v4()
         );
-        let safety_snapshot_path = temp_dir.path().join(snapshot_filename);
+        let safety_snapshot_path = temp_dir.path().join(&snapshot_filename);
 
         // Atomic exclusive creation of the safety snapshot file
         match fs::OpenOptions::new()
@@ -307,43 +328,161 @@ impl BackupService {
             }
 
             if let Some(rb_err) = rollback_err_opt {
-                // Rollback failure: preserve emergency safety snapshot for manual recovery
-                let emergency_path = if let Some(target_db_path) = storage.db_path() {
-                    let backups_dir = target_db_path
+                // Rollback failure: attempt emergency safety snapshot preservation for manual recovery.
+                //
+                // Requirements:
+                // 1. Never report that an emergency snapshot was preserved unless the destination file
+                //    was successfully created, copied, and verified with PRAGMA integrity_check.
+                // 2. Uses a unique filename: emergency-manual-recovery-%Y%m%d-%H%M%S-{uuid}.db
+                // 3. Atomic exclusive creation (create_new) and collision retry so we never overwrite an existing recovery file.
+                // 4. Safely handle partial-copy failures: clean up any partially written/corrupted file at dest_path.
+                // 5. If preservation to backup directory fails (or creation/copy fails):
+                //    - NEVER let RAII TempDir destructor delete the only remaining safety snapshot!
+                //    - Convert temp_dir to persistent path via temp_dir.into_path().
+                //    - Preserve original restore error, rollback error, and preservation failure error.
+                //    - Retain temporary safety snapshot for manual recovery.
+
+                let backups_dir = if let Some(target_db_path) = storage.db_path() {
+                    target_db_path
                         .parent()
                         .unwrap_or_else(|| Path::new("."))
-                        .join("backups");
-                    let _ = fs::create_dir_all(&backups_dir);
-                    let dest_path = backups_dir
-                        .join(format!("emergency-manual-recovery-{}.db", Uuid::new_v4()));
-                    if fs::copy(&safety_snapshot_path, &dest_path).is_ok() {
-                        dest_path
-                    } else {
-                        let fallback = std::env::temp_dir().join(format!(
-                            "devcontext-emergency-recovery-{}.db",
-                            Uuid::new_v4()
-                        ));
-                        let _ = fs::copy(&safety_snapshot_path, &fallback);
-                        fallback
-                    }
+                        .join("backups")
                 } else {
-                    let fallback = std::env::temp_dir().join(format!(
-                        "devcontext-emergency-recovery-{}.db",
-                        Uuid::new_v4()
-                    ));
-                    let _ = fs::copy(&safety_snapshot_path, &fallback);
-                    fallback
+                    PathBuf::from(".devcontext").join("backups")
                 };
 
-                let emergency_path_str = emergency_path.display().to_string();
+                let preservation_res = (|| -> Result<PathBuf> {
+                    if inject_emergency_creation_failure {
+                        return Err(CoreError::Storage(
+                            "Injected emergency destination creation failure".to_string(),
+                        ));
+                    }
+
+                    fs::create_dir_all(&backups_dir)?;
+
+                    let mut dest_file = None;
+                    let mut dest_path = PathBuf::new();
+                    let mut attempts = 0;
+
+                    while attempts < 10 {
+                        attempts += 1;
+                        let filename = format!(
+                            "emergency-manual-recovery-{}-{}.db",
+                            Utc::now().format("%Y%m%d-%H%M%S"),
+                            Uuid::new_v4()
+                        );
+                        let candidate_path = backups_dir.join(filename);
+
+                        match fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(&candidate_path)
+                        {
+                            Ok(file) => {
+                                dest_file = Some(file);
+                                dest_path = candidate_path;
+                                break;
+                            }
+                            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                                continue;
+                            }
+                            Err(e) => return Err(CoreError::Io(e)),
+                        }
+                    }
+
+                    let mut dest_file = dest_file.ok_or_else(|| {
+                        CoreError::Storage(
+                            "Failed to allocate unique emergency backup filename after 10 attempts"
+                                .to_string(),
+                        )
+                    })?;
+
+                    // Copy snapshot into destination with partial-copy protection
+                    let copy_res = (|| -> Result<()> {
+                        let mut src_file = fs::File::open(&safety_snapshot_path)?;
+
+                        if inject_emergency_partial_copy_failure {
+                            use std::io::Read;
+                            let mut buf = [0u8; 512];
+                            let n = src_file.read(&mut buf)?;
+                            dest_file.write_all(&buf[..n])?;
+                            dest_file.flush()?;
+                            return Err(CoreError::Storage(
+                                "Injected emergency copy failure after partial output".to_string(),
+                            ));
+                        }
+
+                        std::io::copy(&mut src_file, &mut dest_file)?;
+                        dest_file.flush()?;
+                        drop(dest_file);
+                        Ok(())
+                    })();
+
+                    if let Err(e) = copy_res {
+                        // Clean up partially written file so no corrupt emergency snapshot remains
+                        let _ = fs::remove_file(&dest_path);
+                        return Err(e);
+                    }
+
+                    // Verify file integrity of the emergency snapshot with PRAGMA integrity_check
+                    if let Err(e) = Self::verify_file_integrity(&dest_path) {
+                        let _ = fs::remove_file(&dest_path);
+                        return Err(CoreError::Storage(format!(
+                            "Emergency snapshot integrity verification failed: {}",
+                            e
+                        )));
+                    }
+
+                    Ok(dest_path)
+                })();
 
                 drop(dest_conn);
-                drop(temp_dir);
 
-                return Err(CoreError::Storage(format!(
-                    "CRITICAL: Restore failed ({}) AND automatic rollback also failed ({}). Database is in an unverified state and requires manual recovery. Emergency safety snapshot preserved at: {}",
-                    restore_err, rb_err, emergency_path_str
-                )));
+                match preservation_res {
+                    Ok(verified_emergency_path) => {
+                        // Emergency snapshot was successfully copied, verified, and preserved!
+                        // Temporary directory can now safely be dropped and cleaned up.
+                        drop(temp_dir);
+
+                        return Err(CoreError::Storage(format!(
+                            "CRITICAL: Restore failed ({}) AND automatic rollback also failed ({}). Database is in an unverified state and requires manual recovery. Emergency safety snapshot preserved and verified at: {}",
+                            restore_err,
+                            rb_err,
+                            verified_emergency_path.display()
+                        )));
+                    }
+                    Err(preservation_err) => {
+                        // Preservation to backup directory failed!
+                        // CRITICAL: Prevent RAII cleanup from deleting the only remaining safety snapshot!
+                        let persisted_temp_dir = temp_dir.path().to_path_buf();
+                        let _ = temp_dir.keep();
+                        let persistent_snapshot_path = persisted_temp_dir.join(&snapshot_filename);
+
+                        // Verify if the temporary safety snapshot is still valid on disk
+                        let temp_integrity = Self::verify_file_integrity(&persistent_snapshot_path);
+
+                        match temp_integrity {
+                            Ok(()) => {
+                                return Err(CoreError::Storage(format!(
+                                    "CRITICAL: Restore failed ({}) AND automatic rollback also failed ({}) AND emergency snapshot preservation to backup directory failed ({}). Retained safety snapshot in temporary directory at: {}. Database is in an unverified state and requires manual recovery.",
+                                    restore_err,
+                                    rb_err,
+                                    preservation_err,
+                                    persistent_snapshot_path.display()
+                                )));
+                            }
+                            Err(integrity_err) => {
+                                return Err(CoreError::Storage(format!(
+                                    "CRITICAL: Restore failed ({}) AND automatic rollback also failed ({}) AND emergency snapshot preservation failed ({}). Temporary safety snapshot could not be verified ({}). Database is in an unverified state and requires manual recovery.",
+                                    restore_err,
+                                    rb_err,
+                                    preservation_err,
+                                    integrity_err
+                                )));
+                            }
+                        }
+                    }
+                }
             }
 
             // Rollback succeeded cleanly!

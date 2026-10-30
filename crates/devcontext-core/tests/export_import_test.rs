@@ -1099,13 +1099,13 @@ fn test_sqlite_rollback_failure_preserves_emergency_snapshot_and_dual_error() {
         err_msg
     );
     assert!(
-        err_msg.contains("Emergency safety snapshot preserved at:"),
+        err_msg.contains("Emergency safety snapshot preserved and verified at:"),
         "Must specify location of emergency snapshot: {}",
         err_msg
     );
 
     // Extract the emergency snapshot path from the error message
-    let marker = "Emergency safety snapshot preserved at: ";
+    let marker = "Emergency safety snapshot preserved and verified at: ";
     let idx = err_msg.find(marker).expect("marker must be found");
     let preserved_path_str = &err_msg[idx + marker.len()..];
     let preserved_path = std::path::Path::new(preserved_path_str.trim());
@@ -1137,6 +1137,277 @@ fn test_sqlite_rollback_failure_preserves_emergency_snapshot_and_dual_error() {
         note_count, 1,
         "Emergency snapshot must preserve the original database content"
     );
+}
+
+#[test]
+fn test_emergency_preservation_destination_creation_failure_retains_temp_snapshot() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    let initial_notes = storage.list_notes(project.id, false).unwrap();
+    assert_eq!(initial_notes.len(), 1);
+
+    // Create a valid backup
+    let backup_dir = root.join(".devcontext").join("backups");
+    let valid_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
+
+    // Call restore with injected failure during restore, rollback AND emergency destination creation
+    let res = BackupService::restore_to_storage_with_injected_emergency_creation_failure(
+        &valid_backup,
+        &storage,
+    );
+
+    assert!(
+        res.is_err(),
+        "Must return Err when emergency creation also fails"
+    );
+    let err_msg = res.unwrap_err().to_string();
+
+    // Verify all 3 errors are preserved
+    assert!(
+        err_msg.contains("CRITICAL: Restore failed"),
+        "Error must report CRITICAL restore failure: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected restore failure after writing 1 page"),
+        "Original restore error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("AND automatic rollback also failed"),
+        "Rollback failure must be stated: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected rollback stepping failure"),
+        "Rollback root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("AND emergency snapshot preservation to backup directory failed"),
+        "Preservation failure must be stated: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected emergency destination creation failure"),
+        "Preservation root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Retained safety snapshot in temporary directory at:"),
+        "Must report that safety snapshot was retained in temp directory: {}",
+        err_msg
+    );
+
+    // Extract the retained temporary snapshot path from the error message
+    let marker = "Retained safety snapshot in temporary directory at: ";
+    let idx = err_msg.find(marker).expect("marker must be found");
+    let rest = &err_msg[idx + marker.len()..];
+    let end_idx = rest
+        .find(". Database is in an unverified state")
+        .expect("end marker must be found");
+    let retained_path_str = &rest[..end_idx];
+    let retained_path = std::path::Path::new(retained_path_str.trim());
+
+    // Verify the temporary snapshot physically exists on disk (proving RAII tempdir cleanup did NOT delete it!)
+    assert!(
+        retained_path.exists(),
+        "Retained safety snapshot must exist on disk at {}",
+        retained_path_str
+    );
+
+    // Verify file integrity of the retained snapshot
+    assert!(
+        BackupService::verify_file_integrity(retained_path).is_ok(),
+        "Retained snapshot must pass integrity check"
+    );
+
+    // Verify that data can be read from the retained snapshot file
+    let conn = rusqlite::Connection::open(retained_path).unwrap();
+    let note_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(
+        note_count, 1,
+        "Retained snapshot must preserve original database content"
+    );
+
+    // Clean up the retained directory
+    if let Some(parent) = retained_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+}
+
+#[test]
+fn test_emergency_preservation_partial_copy_failure_cleans_dest_and_retains_temp() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (project, storage) = setup_sample_project(root);
+
+    let initial_notes = storage.list_notes(project.id, false).unwrap();
+    assert_eq!(initial_notes.len(), 1);
+
+    // Create a valid backup
+    let backup_dir = root.join(".devcontext").join("backups");
+    let valid_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
+
+    // Call restore with injected failure during emergency copy after partial output
+    let res = BackupService::restore_to_storage_with_injected_emergency_partial_copy_failure(
+        &valid_backup,
+        &storage,
+    );
+
+    assert!(
+        res.is_err(),
+        "Must return Err when emergency copy fails halfway"
+    );
+    let err_msg = res.unwrap_err().to_string();
+
+    // Verify all 3 errors are preserved
+    assert!(
+        err_msg.contains("Injected restore failure after writing 1 page"),
+        "Original restore error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected rollback stepping failure"),
+        "Rollback root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected emergency copy failure after partial output"),
+        "Copy root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Retained safety snapshot in temporary directory at:"),
+        "Must report that safety snapshot was retained in temp directory: {}",
+        err_msg
+    );
+
+    // Verify no partially written emergency file remains in the backups directory
+    if backup_dir.exists() {
+        for entry in fs::read_dir(&backup_dir).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy();
+            assert!(
+                !name.starts_with("emergency-manual-recovery-"),
+                "Partially written emergency file must be removed on failure: {}",
+                name
+            );
+        }
+    }
+
+    // Extract the retained temporary snapshot path
+    let marker = "Retained safety snapshot in temporary directory at: ";
+    let idx = err_msg.find(marker).expect("marker must be found");
+    let rest = &err_msg[idx + marker.len()..];
+    let end_idx = rest
+        .find(". Database is in an unverified state")
+        .expect("end marker must be found");
+    let retained_path_str = &rest[..end_idx];
+    let retained_path = std::path::Path::new(retained_path_str.trim());
+
+    // Verify the temporary snapshot physically exists on disk and is intact
+    assert!(
+        retained_path.exists(),
+        "Retained safety snapshot must exist on disk at {}",
+        retained_path_str
+    );
+    assert!(
+        BackupService::verify_file_integrity(retained_path).is_ok(),
+        "Retained snapshot must pass integrity check"
+    );
+
+    // Clean up retained directory
+    if let Some(parent) = retained_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+}
+
+#[test]
+fn test_emergency_preservation_filesystem_blocker_retains_temp_snapshot() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let (_project, storage) = setup_sample_project(root);
+
+    // Create a valid backup before blocking
+    let backup_dir = root.join(".devcontext").join("backups");
+    let valid_backup =
+        BackupService::create_atomic_backup_file(&storage, &backup_dir, "snapshot").unwrap();
+
+    // Now remove the backups dir and replace with a regular file to block create_dir_all
+    let _ = fs::remove_file(&valid_backup);
+    let _ = fs::remove_dir_all(&backup_dir);
+    // Put a blocker regular file where the backups dir needs to be
+    fs::write(&backup_dir, b"blocker-file-preventing-directory-creation").unwrap();
+
+    // Re-create a valid backup in a separate folder for restore source
+    let external_backup_dir = dir.path().join("external_backups");
+    let valid_backup2 =
+        BackupService::create_atomic_backup_file(&storage, &external_backup_dir, "snapshot")
+            .unwrap();
+
+    // Trigger restore with rollback failure while backups_dir is blocked on disk
+    let res =
+        BackupService::restore_to_storage_with_injected_rollback_failure(&valid_backup2, &storage);
+
+    assert!(
+        res.is_err(),
+        "Must return Err when backups_dir is a blocker file"
+    );
+    let err_msg = res.unwrap_err().to_string();
+
+    assert!(
+        err_msg.contains("Injected restore failure after writing 1 page"),
+        "Original restore error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Injected rollback stepping failure"),
+        "Rollback root error must be preserved: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("AND emergency snapshot preservation to backup directory failed"),
+        "Preservation failure must be stated: {}",
+        err_msg
+    );
+    assert!(
+        err_msg.contains("Retained safety snapshot in temporary directory at:"),
+        "Must report that safety snapshot was retained in temp directory: {}",
+        err_msg
+    );
+
+    // Extract the retained temporary snapshot path
+    let marker = "Retained safety snapshot in temporary directory at: ";
+    let idx = err_msg.find(marker).expect("marker must be found");
+    let rest = &err_msg[idx + marker.len()..];
+    let end_idx = rest
+        .find(". Database is in an unverified state")
+        .expect("end marker must be found");
+    let retained_path_str = &rest[..end_idx];
+    let retained_path = std::path::Path::new(retained_path_str.trim());
+
+    // Verify the temporary snapshot physically exists on disk and passes integrity check
+    assert!(
+        retained_path.exists(),
+        "Retained safety snapshot must exist on disk at {}",
+        retained_path_str
+    );
+    assert!(
+        BackupService::verify_file_integrity(retained_path).is_ok(),
+        "Retained snapshot must pass integrity check"
+    );
+
+    // Clean up retained directory
+    if let Some(parent) = retained_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
 }
 
 #[test]
