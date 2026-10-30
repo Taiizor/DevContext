@@ -902,7 +902,7 @@ impl SqliteStorage {
             "SELECT
                 f.record_id,
                 f.record_type,
-                f.title,
+                r.title,
                 snippet(records_fts, -1, '[match]', '[/match]', '...', 16) AS snippet,
                 bm25(records_fts, 0.0, 0.0, 0.0, 5.0, 1.0, 2.0) AS score,
                 r.created_at,
@@ -920,7 +920,7 @@ impl SqliteStorage {
             "SELECT
                 f.record_id,
                 f.record_type,
-                f.title,
+                r.title,
                 snippet(records_fts, -1, '[match]', '[/match]', '...', 16) AS snippet,
                 bm25(records_fts, 0.0, 0.0, 0.0, 5.0, 1.0, 2.0) AS score,
                 r.created_at,
@@ -985,33 +985,46 @@ impl SqliteStorage {
         let mut count = 0;
         count += tx.execute(
             "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-             SELECT r.id, r.project_id, r.record_type, r.title, n.content_markdown, r.tags
+             SELECT r.id, r.project_id, r.record_type,
+                    replace(r.title, 'ı', 'i'),
+                    replace(n.content_markdown, 'ı', 'i'),
+                    replace(r.tags, 'ı', 'i')
              FROM records r JOIN notes n ON r.id = n.record_id WHERE r.is_deleted = 0;",
             [],
         )?;
         count += tx.execute(
             "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-             SELECT r.id, r.project_id, r.record_type, r.title,
-                    d.context || ' ' || d.decision || ' ' || d.consequences || ' ' || COALESCE(d.alternatives_considered, ''),
-                    r.tags
+             SELECT r.id, r.project_id, r.record_type,
+                    replace(r.title, 'ı', 'i'),
+                    replace(d.context || ' ' || d.decision || ' ' || d.consequences || ' ' || COALESCE(d.alternatives_considered, ''), 'ı', 'i'),
+                    replace(r.tags, 'ı', 'i')
              FROM records r JOIN decisions d ON r.id = d.record_id WHERE r.is_deleted = 0;",
             [],
         )?;
         count += tx.execute(
             "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-             SELECT r.id, r.project_id, r.record_type, r.title, COALESCE(m.description, ''), r.tags
+             SELECT r.id, r.project_id, r.record_type,
+                    replace(r.title, 'ı', 'i'),
+                    replace(COALESCE(m.description, ''), 'ı', 'i'),
+                    replace(r.tags, 'ı', 'i')
              FROM records r JOIN milestones m ON r.id = m.record_id WHERE r.is_deleted = 0;",
             [],
         )?;
         count += tx.execute(
             "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-             SELECT r.id, r.project_id, r.record_type, r.title, l.summary || ' ' || COALESCE(l.details, ''), r.tags
+             SELECT r.id, r.project_id, r.record_type,
+                    replace(r.title, 'ı', 'i'),
+                    replace(l.summary || ' ' || COALESCE(l.details, ''), 'ı', 'i'),
+                    replace(r.tags, 'ı', 'i')
              FROM records r JOIN log_entries l ON r.id = l.record_id WHERE r.is_deleted = 0;",
             [],
         )?;
         count += tx.execute(
             "INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-             SELECT r.id, r.project_id, r.record_type, r.title, s.command_text || ' ' || COALESCE(s.explanation, ''), r.tags
+             SELECT r.id, r.project_id, r.record_type,
+                    replace(r.title, 'ı', 'i'),
+                    replace(s.command_text || ' ' || COALESCE(s.explanation, ''), 'ı', 'i'),
+                    replace(r.tags, 'ı', 'i')
              FROM records r JOIN saved_commands s ON r.id = s.record_id WHERE r.is_deleted = 0;",
             [],
         )?;

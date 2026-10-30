@@ -28,34 +28,49 @@ impl Migration for Migration0002Fts5Search {
             );
 
             -- 2. Populate FTS5 table from existing database records (where not deleted)
+            -- Note: replace(..., 'ı', 'i') ensures Turkish dotless-i is normalized symmetrically
+            -- with dotted-i and uppercase I in unicode61 without altering stored content.
             INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-            SELECT r.id, r.project_id, r.record_type, r.title, n.content_markdown, r.tags
+            SELECT r.id, r.project_id, r.record_type,
+                   replace(r.title, 'ı', 'i'),
+                   replace(n.content_markdown, 'ı', 'i'),
+                   replace(r.tags, 'ı', 'i')
             FROM records r
             JOIN notes n ON r.id = n.record_id
             WHERE r.is_deleted = 0;
 
             INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-            SELECT r.id, r.project_id, r.record_type, r.title,
-                   d.context || ' ' || d.decision || ' ' || d.consequences || ' ' || COALESCE(d.alternatives_considered, ''),
-                   r.tags
+            SELECT r.id, r.project_id, r.record_type,
+                   replace(r.title, 'ı', 'i'),
+                   replace(d.context || ' ' || d.decision || ' ' || d.consequences || ' ' || COALESCE(d.alternatives_considered, ''), 'ı', 'i'),
+                   replace(r.tags, 'ı', 'i')
             FROM records r
             JOIN decisions d ON r.id = d.record_id
             WHERE r.is_deleted = 0;
 
             INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-            SELECT r.id, r.project_id, r.record_type, r.title, COALESCE(m.description, ''), r.tags
+            SELECT r.id, r.project_id, r.record_type,
+                   replace(r.title, 'ı', 'i'),
+                   replace(COALESCE(m.description, ''), 'ı', 'i'),
+                   replace(r.tags, 'ı', 'i')
             FROM records r
             JOIN milestones m ON r.id = m.record_id
             WHERE r.is_deleted = 0;
 
             INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-            SELECT r.id, r.project_id, r.record_type, r.title, l.summary || ' ' || COALESCE(l.details, ''), r.tags
+            SELECT r.id, r.project_id, r.record_type,
+                   replace(r.title, 'ı', 'i'),
+                   replace(l.summary || ' ' || COALESCE(l.details, ''), 'ı', 'i'),
+                   replace(r.tags, 'ı', 'i')
             FROM records r
             JOIN log_entries l ON r.id = l.record_id
             WHERE r.is_deleted = 0;
 
             INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-            SELECT r.id, r.project_id, r.record_type, r.title, s.command_text || ' ' || COALESCE(s.explanation, ''), r.tags
+            SELECT r.id, r.project_id, r.record_type,
+                   replace(r.title, 'ı', 'i'),
+                   replace(s.command_text || ' ' || COALESCE(s.explanation, ''), 'ı', 'i'),
+                   replace(r.tags, 'ı', 'i')
             FROM records r
             JOIN saved_commands s ON r.id = s.record_id
             WHERE r.is_deleted = 0;
@@ -67,7 +82,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.content_markdown, r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.content_markdown, 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -75,7 +93,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.content_markdown, r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.content_markdown, 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -84,9 +105,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title,
-                       new.context || ' ' || new.decision || ' ' || new.consequences || ' ' || COALESCE(new.alternatives_considered, ''),
-                       r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.context || ' ' || new.decision || ' ' || new.consequences || ' ' || COALESCE(new.alternatives_considered, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -94,9 +116,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title,
-                       new.context || ' ' || new.decision || ' ' || new.consequences || ' ' || COALESCE(new.alternatives_considered, ''),
-                       r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.context || ' ' || new.decision || ' ' || new.consequences || ' ' || COALESCE(new.alternatives_considered, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -105,7 +128,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, COALESCE(new.description, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(COALESCE(new.description, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -113,7 +139,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, COALESCE(new.description, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(COALESCE(new.description, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -122,7 +151,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.summary || ' ' || COALESCE(new.details, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.summary || ' ' || COALESCE(new.details, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -130,7 +162,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.summary || ' ' || COALESCE(new.details, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.summary || ' ' || COALESCE(new.details, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -139,7 +174,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.command_text || ' ' || COALESCE(new.explanation, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.command_text || ' ' || COALESCE(new.explanation, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -147,7 +185,10 @@ impl Migration for Migration0002Fts5Search {
             BEGIN
                 DELETE FROM records_fts WHERE record_id = new.record_id;
                 INSERT INTO records_fts(record_id, project_id, record_type, title, body, tags)
-                SELECT r.id, r.project_id, r.record_type, r.title, new.command_text || ' ' || COALESCE(new.explanation, ''), r.tags
+                SELECT r.id, r.project_id, r.record_type,
+                       replace(r.title, 'ı', 'i'),
+                       replace(new.command_text || ' ' || COALESCE(new.explanation, ''), 'ı', 'i'),
+                       replace(r.tags, 'ı', 'i')
                 FROM records r WHERE r.id = new.record_id AND r.is_deleted = 0;
             END;
 
@@ -160,16 +201,20 @@ impl Migration for Migration0002Fts5Search {
                     new.id,
                     new.project_id,
                     new.record_type,
-                    new.title,
-                    CASE new.record_type
-                        WHEN 'note' THEN (SELECT content_markdown FROM notes WHERE record_id = new.id)
-                        WHEN 'decision' THEN (SELECT context || ' ' || decision || ' ' || consequences || ' ' || COALESCE(alternatives_considered, '') FROM decisions WHERE record_id = new.id)
-                        WHEN 'milestone' THEN (SELECT COALESCE(description, '') FROM milestones WHERE record_id = new.id)
-                        WHEN 'log_entry' THEN (SELECT summary || ' ' || COALESCE(details, '') FROM log_entries WHERE record_id = new.id)
-                        WHEN 'saved_command' THEN (SELECT command_text || ' ' || COALESCE(explanation, '') FROM saved_commands WHERE record_id = new.id)
-                        ELSE ''
-                    END,
-                    new.tags
+                    replace(new.title, 'ı', 'i'),
+                    replace(
+                        CASE new.record_type
+                            WHEN 'note' THEN (SELECT content_markdown FROM notes WHERE record_id = new.id)
+                            WHEN 'decision' THEN (SELECT context || ' ' || decision || ' ' || consequences || ' ' || COALESCE(alternatives_considered, '') FROM decisions WHERE record_id = new.id)
+                            WHEN 'milestone' THEN (SELECT COALESCE(description, '') FROM milestones WHERE record_id = new.id)
+                            WHEN 'log_entry' THEN (SELECT summary || ' ' || COALESCE(details, '') FROM log_entries WHERE record_id = new.id)
+                            WHEN 'saved_command' THEN (SELECT command_text || ' ' || COALESCE(explanation, '') FROM saved_commands WHERE record_id = new.id)
+                            ELSE ''
+                        END,
+                        'ı',
+                        'i'
+                    ),
+                    replace(new.tags, 'ı', 'i')
                 WHERE new.is_deleted = 0
                   AND (
                       EXISTS(SELECT 1 FROM notes WHERE record_id = new.id) OR

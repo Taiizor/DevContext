@@ -27,21 +27,26 @@ impl SearchService {
 
         let limit = filter.limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
 
+        // Normalize Turkish dotless-i ('ı') to 'i' so search behaves symmetrically
+        // across Turkish case folding and diacritics in SQLite unicode61.
+        let normalized = trimmed.replace('ı', "i");
+
         // Attempt user's query; if SQLite returns an FTS5 syntax error (e.g. unclosed quote or operator),
         // fallback to sanitized token query.
-        let raw_matches = match storage.search_raw(project_id, trimmed, filter.record_type, limit) {
-            Ok(matches) => matches,
-            Err(CoreError::Sqlite(_)) => {
-                let sanitized = Self::sanitize_fts5_query(trimmed);
-                if sanitized.is_empty() {
-                    return Ok(Vec::new());
+        let raw_matches =
+            match storage.search_raw(project_id, &normalized, filter.record_type, limit) {
+                Ok(matches) => matches,
+                Err(CoreError::Sqlite(_)) => {
+                    let sanitized = Self::sanitize_fts5_query(&normalized);
+                    if sanitized.is_empty() {
+                        return Ok(Vec::new());
+                    }
+                    storage
+                        .search_raw(project_id, &sanitized, filter.record_type, limit)
+                        .unwrap_or_default()
                 }
-                storage
-                    .search_raw(project_id, &sanitized, filter.record_type, limit)
-                    .unwrap_or_default()
-            }
-            Err(e) => return Err(e),
-        };
+                Err(e) => return Err(e),
+            };
 
         let mut results = Vec::with_capacity(raw_matches.len());
 

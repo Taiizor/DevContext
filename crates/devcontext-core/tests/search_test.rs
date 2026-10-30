@@ -288,6 +288,506 @@ fn test_search_unicode_and_turkish_characters() {
 }
 
 #[test]
+fn test_turkish_character_casing_and_normalization() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let storage = SqliteStorage::open_in_memory().unwrap();
+
+    let project = Project::new("Turkish Casing Project", None).unwrap();
+    storage.save_project(&project).unwrap();
+
+    let note = Note::new(
+        project.id,
+        "Türkçe Karakter ve Büyük-Küçük Harf Testi",
+        "Isparta ılık ıspanak. İstanbul istasyon. Şebeke şeker. Ağaç yağmur. Üzüm üretim. Ördek örnek. Çınar çekiç.",
+        vec!["türkçe".into()],
+        None,
+    )
+    .unwrap();
+    storage.save_note(&note).unwrap();
+
+    let filter = SearchFilter::default();
+
+    // S / s (Ş / ş)
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "şebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Şebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ŞEBEKE", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "sebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // C / c (Ç / ç)
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "çekiç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Çekiç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÇEKİÇ", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "cekic", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // G / g (Ğ / ğ)
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ağaç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Ağaç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "AĞAÇ", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "agac", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // U / u (Ü / ü)
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "üretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Üretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÜRETİM", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "uretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // O / o (Ö / ö)
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "örnek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Örnek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÖRNEK", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ornek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // I / ı and İ / i
+    // Verify original stored content is preserved without alterations
+    let found = SearchService::search(&storage, project.id, root, "isparta", &filter).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].title, "Türkçe Karakter ve Büyük-Küçük Harf Testi");
+
+    // Comprehensive assertions for all 7 Turkish character pairs across upper/lower/diacritic variants:
+
+    // 1. Ş / ş
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "şebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Şebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ŞEBEKE", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "sebeke", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "SEBEKE", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 2. Ç / ç
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "çekiç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Çekiç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÇEKİÇ", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "cekic", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "CEKIC", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 3. Ğ / ğ
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ağaç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Ağaç", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "AĞAÇ", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "agac", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "AGAC", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "yağmur", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "YAĞMUR", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "yagmur", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 4. Ü / ü
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "üretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Üretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÜRETİM", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "uretim", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "URETIM", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "üzüm", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Üzüm", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "uzum", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 5. Ö / ö
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "örnek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Örnek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ÖRNEK", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ornek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ORNEK", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ördek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Ördek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ordek", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 6. I / ı
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "isparta", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ısparta", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Isparta", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ISPARTA", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ıspanak", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Ispanak", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ISPANAK", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ispanak", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ılık", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ILIK", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "Ilık", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ilik", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 7. İ / i
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "istanbul", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "İstanbul", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "İSTANBUL", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ISTANBUL", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "istasyon", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "İstasyon", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "İSTASYON", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        SearchService::search(&storage, project.id, root, "ISTASYON", &filter)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn test_search_invalid_syntax_and_empty_queries() {
     let dir = tempdir().unwrap();
     let root = dir.path();

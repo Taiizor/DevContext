@@ -3,7 +3,7 @@ use crate::git::GitAdapter;
 use crate::storage::SqliteStorage;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::{Component, Path};
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 /// Status indicating the resolution result of a reference.
@@ -85,6 +85,17 @@ impl ResolvedReference {
     }
 }
 
+/// Result of safely validating a filesystem target against the project boundary.
+#[derive(Debug, PartialEq, Eq)]
+enum PathValidationResult {
+    /// Target exists inside the project root at the given canonical path.
+    Exists(PathBuf),
+    /// Target does not exist, but its existing ancestor is safely inside the project root.
+    TargetMissing,
+    /// Path violates safety boundaries (traversal, external symlink/junction, unresolvable ancestor).
+    Invalid(String),
+}
+
 /// Resolves DevContext references safely against the local filesystem, Git, and database.
 pub struct ReferenceResolver;
 
@@ -158,32 +169,9 @@ impl ReferenceResolver {
                 }
             }
 
-            ReferenceType::File => {
-                if target.is_empty() {
-                    return ResolvedReference::invalid(
-                        reference.clone(),
-                        "File path cannot be empty",
-                    );
-                }
-
-                let target_path = Path::new(target);
-
-                // Security: Prevent path traversal escaping project root
-                if Self::is_traversal_outside_root(target_path, project_root) {
-                    return ResolvedReference::invalid(
-                        reference.clone(),
-                        "File reference traverses outside project root",
-                    );
-                }
-
-                let full_path = if target_path.is_absolute() {
-                    target_path.to_path_buf()
-                } else {
-                    project_root.join(target_path)
-                };
-
-                if full_path.exists() {
-                    if full_path.is_file() {
+            ReferenceType::File => match Self::validate_project_path(target, project_root) {
+                PathValidationResult::Exists(canonical_path) => {
+                    if canonical_path.is_file() {
                         ResolvedReference::resolved(reference.clone())
                     } else {
                         ResolvedReference::invalid(
@@ -191,37 +179,18 @@ impl ReferenceResolver {
                             "Target exists but is a directory, not a file",
                         )
                     }
-                } else {
+                }
+                PathValidationResult::TargetMissing => {
                     ResolvedReference::target_missing(reference.clone(), "File does not exist")
                 }
-            }
-
-            ReferenceType::Folder => {
-                if target.is_empty() {
-                    return ResolvedReference::invalid(
-                        reference.clone(),
-                        "Folder path cannot be empty",
-                    );
+                PathValidationResult::Invalid(reason) => {
+                    ResolvedReference::invalid(reference.clone(), reason)
                 }
+            },
 
-                let target_path = Path::new(target);
-
-                // Security: Prevent path traversal escaping project root
-                if Self::is_traversal_outside_root(target_path, project_root) {
-                    return ResolvedReference::invalid(
-                        reference.clone(),
-                        "Folder reference traverses outside project root",
-                    );
-                }
-
-                let full_path = if target_path.is_absolute() {
-                    target_path.to_path_buf()
-                } else {
-                    project_root.join(target_path)
-                };
-
-                if full_path.exists() {
-                    if full_path.is_dir() {
+            ReferenceType::Folder => match Self::validate_project_path(target, project_root) {
+                PathValidationResult::Exists(canonical_path) => {
+                    if canonical_path.is_dir() {
                         ResolvedReference::resolved(reference.clone())
                     } else {
                         ResolvedReference::invalid(
@@ -229,10 +198,14 @@ impl ReferenceResolver {
                             "Target exists but is a file, not a directory",
                         )
                     }
-                } else {
+                }
+                PathValidationResult::TargetMissing => {
                     ResolvedReference::target_missing(reference.clone(), "Folder does not exist")
                 }
-            }
+                PathValidationResult::Invalid(reason) => {
+                    ResolvedReference::invalid(reference.clone(), reason)
+                }
+            },
 
             ReferenceType::Url => {
                 // Strict syntactical validation without any network access
@@ -297,32 +270,150 @@ impl ReferenceResolver {
             .collect()
     }
 
-    /// Checks whether `path` traverses or points outside `root`.
-    fn is_traversal_outside_root(path: &Path, root: &Path) -> bool {
-        if path.is_absolute() {
-            return !path.starts_with(root);
+    /// Safely validates a file or directory reference against canonical project boundaries.
+    /// Handles symlinks, junctions, reparse points, absolute/UNC paths, parent traversal,
+    /// and nonexistent paths with ancestor verification.
+    fn validate_project_path(target_str: &str, project_root: &Path) -> PathValidationResult {
+        if target_str.is_empty() {
+            return PathValidationResult::Invalid("Path cannot be empty".into());
         }
 
-        let mut depth: isize = 0;
-        for comp in path.components() {
-            match comp {
-                Component::ParentDir => {
-                    depth -= 1;
-                    if depth < 0 {
-                        return true;
+        let canonical_root = match project_root.canonicalize() {
+            Ok(r) => r,
+            Err(e) => {
+                return PathValidationResult::Invalid(format!(
+                    "Project root cannot be canonicalized: {}",
+                    e
+                ))
+            }
+        };
+
+        let target_path = Path::new(target_str);
+        let candidate = if target_path.is_absolute() {
+            target_path.to_path_buf()
+        } else {
+            project_root.join(target_path)
+        };
+
+        // 1. Check if candidate itself is a symlink or junction
+        if let Ok(meta) = candidate.symlink_metadata() {
+            if meta.file_type().is_symlink() {
+                // If the symlink/junction exists and points somewhere:
+                match candidate.canonicalize() {
+                    Ok(canonical_target) => {
+                        if !Self::is_subpath(&canonical_target, &canonical_root) {
+                            return PathValidationResult::Invalid(
+                                "Symlink or junction target resolves outside project root".into(),
+                            );
+                        }
+                        return PathValidationResult::Exists(canonical_target);
+                    }
+                    Err(_) => {
+                        // Broken symlink/junction: inspect link destination
+                        if let Ok(link_dest) = std::fs::read_link(&candidate) {
+                            let full_dest = if link_dest.is_absolute() {
+                                link_dest
+                            } else {
+                                candidate.parent().unwrap_or(project_root).join(link_dest)
+                            };
+                            let mut anc = full_dest.as_path();
+                            while !anc.exists() {
+                                match anc.parent() {
+                                    Some(p) if p != anc => anc = p,
+                                    _ => break,
+                                }
+                            }
+                            if anc.exists() {
+                                if let Ok(canonical_anc) = anc.canonicalize() {
+                                    if !Self::is_subpath(&canonical_anc, &canonical_root) {
+                                        return PathValidationResult::Invalid(
+                                            "Broken symlink points outside project root".into(),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        return PathValidationResult::TargetMissing;
                     }
                 }
-                Component::Normal(_) => {
-                    depth += 1;
-                }
-                Component::RootDir | Component::Prefix(_) => {
-                    return true;
-                }
-                _ => {}
             }
         }
 
-        false
+        // 2. Candidate exists on filesystem
+        if candidate.exists() {
+            match candidate.canonicalize() {
+                Ok(canonical_target) => {
+                    if Self::is_subpath(&canonical_target, &canonical_root) {
+                        PathValidationResult::Exists(canonical_target)
+                    } else {
+                        PathValidationResult::Invalid("Path resolves outside project root".into())
+                    }
+                }
+                Err(e) => {
+                    PathValidationResult::Invalid(format!("Path cannot be canonicalized: {}", e))
+                }
+            }
+        } else {
+            // 3. Candidate does not exist. Check closest existing ancestor directory
+            let mut existing_ancestor = candidate.as_path();
+            let mut found_existing = false;
+
+            while let Some(parent) = existing_ancestor.parent() {
+                existing_ancestor = parent;
+                if existing_ancestor.exists() {
+                    found_existing = true;
+                    break;
+                }
+                if existing_ancestor == parent {
+                    break;
+                }
+            }
+
+            if found_existing && existing_ancestor.exists() {
+                match existing_ancestor.canonicalize() {
+                    Ok(canonical_ancestor) => {
+                        if Self::is_subpath(&canonical_ancestor, &canonical_root) {
+                            PathValidationResult::TargetMissing
+                        } else {
+                            PathValidationResult::Invalid(
+                                "Path ancestor resolves outside project root".into(),
+                            )
+                        }
+                    }
+                    Err(e) => PathValidationResult::Invalid(format!(
+                        "Path ancestor cannot be canonicalized: {}",
+                        e
+                    )),
+                }
+            } else {
+                PathValidationResult::Invalid(
+                    "Path does not have an accessible ancestor inside project root".into(),
+                )
+            }
+        }
+    }
+
+    /// Determines if `target` resides within or is equal to `root`, platform-aware.
+    fn is_subpath(target: &Path, root: &Path) -> bool {
+        #[cfg(windows)]
+        {
+            let target_str = target.to_string_lossy().to_lowercase().replace('/', "\\");
+            let root_str = root.to_string_lossy().to_lowercase().replace('/', "\\");
+
+            if target_str == root_str {
+                return true;
+            }
+            let prefix = if root_str.ends_with('\\') {
+                root_str
+            } else {
+                format!("{}\\", root_str)
+            };
+            target_str.starts_with(&prefix)
+        }
+        #[cfg(not(windows))]
+        {
+            target.starts_with(root)
+        }
     }
 
     /// Syntactically validates a URL without network calls.
