@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 1 --- Repository and engineering foundation (Complete)
--   **Overall status:** Phase 1 complete; ready for Phase 2 approval
+-   **Current phase:** Phase 2 --- Core domain and storage (Complete)
+-   **Overall status:** Phase 2 complete; ready for Phase 3 approval
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Core Domain and Storage Engine (Pending Phase 2 approval)
+-   **Current milestone:** CLI MVP (Pending Phase 3 approval)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -28,8 +28,8 @@
   ------------------------------------------- ------------- ----------------- --------------------------------------------------
   0\. Discovery and product contract          Complete      2026-10-30        PRD, architecture, ADRs 0001-0009, schema v1 ready
   1\. Repository and engineering foundation   Complete      2026-10-30        Workspace layout, Cargo, Bun/TS, CI, and test suite
-  2\. Core domain and storage                 Not started   ---               Pending user approval to begin Phase 2
-  3\. CLI MVP                                 Not started   ---               
+  2\. Core domain and storage                 Complete      2026-10-30        SQLite WAL, schema v1 migrations, CRUD, backup/restore
+  3\. CLI MVP                                 Not started   ---               Pending user approval to begin Phase 3
   4\. Git integration and timeline            Not started   ---               
   5\. Search and references                   Not started   ---               
   6\. VS Code extension MVP                   Not started   ---               
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 1 complete. Awaiting user approval to proceed to Phase 2.
+-   Phase 2 complete. Awaiting user approval to proceed to Phase 3.
 
 ## Blockers and risks
 
@@ -93,39 +93,37 @@
 
 **Verification evidence:**
 - Created Cargo workspace manifest (`Cargo.toml`) with members `crates/devcontext-core` and `apps/cli`.
-- Created Bun-based TypeScript package for VS Code extension (`apps/vscode-extension/package.json`, `tsconfig.json`).
+- Created Bun-based TypeScript package for VS Code extension (`apps/vscode-extension`).
 - `LICENSE-MIT` and `LICENSE-APACHE` established for dual licensing.
-- Community and engineering docs created: `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `docs/commit-convention.md`, `docs/dependency-policy.md`, `docs/release-strategy.md`.
-- GitHub templates created: `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`, `.github/PULL_REQUEST_TEMPLATE.md`.
+- Community and engineering docs created.
 - Cross-platform CI configured for Ubuntu, Windows, and macOS at `.github/workflows/ci.yml`.
-- `.gitignore` configured to prevent committing `.devcontext/`, `target/`, `node_modules/`, `dist/`, `*.db`, and credentials.
-- Test suites verified locally:
-  - `cargo fmt --check`: Passed (clean formatting).
-  - `cargo clippy --all-targets --all-features -- -D warnings`: Passed (0 warnings).
-  - `cargo test`: 3 unit tests passed across core and CLI.
-  - `bun run typecheck`: Passed (`tsc --noEmit` with 0 errors).
-  - `bun test`: 2 extension tests passed.
-  - `bun run build`: Extension bundled cleanly.
+- Baseline test suites verified: `cargo fmt --check`, `cargo clippy`, `cargo test`, `bun run typecheck`, `bun test`, `bun run build`.
 
 ## Phase 2 --- Core domain and storage
 
--   [ ] Define domain types and validation rules.
--   [ ] Implement project initialization and stable identity.
--   [ ] Implement SQLite connection management.
--   [ ] Implement schema migrations.
--   [ ] Implement transactional repository interfaces.
--   [ ] Implement note CRUD.
--   [ ] Implement decision CRUD.
--   [ ] Implement milestone and log entry persistence.
--   [ ] Implement tags and references.
--   [ ] Implement saved command records (storage only).
--   [ ] Implement data integrity checks.
--   [ ] Implement database backup and restore primitives.
--   [ ] Add migration tests.
--   [ ] Add corruption and locked-database handling.
--   [ ] Add concurrent access and interrupted-write tests.
+-   [x] Define domain types and validation rules.
+-   [x] Implement project initialization and stable identity.
+-   [x] Implement SQLite connection management.
+-   [x] Implement schema migrations.
+-   [x] Implement transactional repository interfaces.
+-   [x] Implement note CRUD.
+-   [x] Implement decision CRUD.
+-   [x] Implement milestone and log entry persistence.
+-   [x] Implement tags and references.
+-   [x] Implement saved command records (storage only).
+-   [x] Implement data integrity checks.
+-   [x] Implement database backup and restore primitives.
+-   [x] Add migration tests.
+-   [x] Add corruption and locked-database handling.
+-   [x] Add concurrent access and interrupted-write tests.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- Domain models implemented with strict invariants: `Project`, `Record`, `Note`, `Decision` (ADR lifecycle & supersede tracking), `Milestone`, `LogEntry`, `SavedCommand` (secret heuristics), `Reference`.
+- SQLite storage engine implemented (`SqliteStorage`) with `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode = WAL`, and `busy_timeout = 5000ms`.
+- Transactional migration system with versioned runner and initial schema v1 migration (`m0001_initial.rs`).
+- Online non-blocking database backup, restore, and integrity checks implemented (`BackupService`).
+- Complete automated test suite: 30 tests passing (13 unit tests, 1 CLI test, and 16 integration tests covering PRAGMAs, migration rollback, CRUD, cascade deletes, foreign key violations, strict project isolation, transaction rollback, multi-threaded concurrency, corrupted database handling, and online backup/restore).
+- Zero warnings: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `bun run typecheck`, and `bun test` all pass cleanly.
 
 ## Phase 3 --- CLI MVP
 
@@ -272,6 +270,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 2: Core Domain & Storage Engine      Implemented domain models, SQLite WAL engine, schema v1 migrations, backup/restore primitives, and 30 unit/integration tests. `cargo fmt`, `cargo clippy`, and `cargo test` passed with 0 warnings.
   2026-10-30   Phase 1: Repository & Foundation           Established Cargo & Bun workspaces, licenses, CI, docs, test suites. `cargo fmt`, `cargo clippy`, `cargo test`, `tsc --noEmit`, `bun test`, `bun run build` all passed cleanly.
   2026-10-30   Phase 0: Discovery & Product Contract      Created PRD, Architecture Overview, MVP Checklist, JSON Schema v1, and ADRs 0003-0009. Updated PROGRESS.md. Validated schema syntax with Bun. Checked git status.
 
