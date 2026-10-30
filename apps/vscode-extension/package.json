@@ -124,6 +124,16 @@
         "category": "DevContext"
       },
       {
+        "command": "devcontext.inspect",
+        "title": "DevContext: Inspect Project Data...",
+        "category": "DevContext"
+      },
+      {
+        "command": "devcontext.deleteData",
+        "title": "DevContext: Delete All Project Memory...",
+        "category": "DevContext"
+      },
+      {
         "command": "devcontext.refreshViews",
         "title": "DevContext: Refresh Views",
         "category": "DevContext",

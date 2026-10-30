@@ -246,19 +246,23 @@ describe('Real End-to-End Workflows with Native Rust Engine', () => {
 
     let searchItems: import('vscode').QuickPickItem[] = [];
     mockVscode.window.createQuickPick = () => {
+      let currentItems: import('vscode').QuickPickItem[] = [];
       const qp = {
         title: '',
         placeholder: '',
-        items: [] as import('vscode').QuickPickItem[],
+        get items() {
+          return currentItems;
+        },
+        set items(val: import('vscode').QuickPickItem[]) {
+          currentItems = val;
+          searchItems = val;
+        },
         onDidChangeValue: (cb: (val: string) => void) => {
           setTimeout(() => cb('Microservice'), 20);
           return { dispose: () => {} };
         },
         onDidAccept: (cb: () => void) => {
-          setTimeout(() => {
-            searchItems = qp.items;
-            cb();
-          }, 250);
+          setTimeout(() => cb(), 600);
           return { dispose: () => {} };
         },
         onDidHide: () => ({ dispose: () => {} }),
@@ -274,7 +278,7 @@ describe('Real End-to-End Workflows with Native Rust Engine', () => {
     await searchHandler?.(tempWorkspace);
 
     // Wait for debounce (150ms) and FTS5 search execution
-    await new Promise((r) => setTimeout(r, 350));
+    await new Promise((r) => setTimeout(r, 800));
 
     expect(searchItems.length).toBeGreaterThanOrEqual(1);
     const targetMatch = searchItems.find((item) =>

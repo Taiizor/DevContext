@@ -4,7 +4,12 @@ import type {
   CliEnvelope,
   DecisionDetail,
   DecisionSummary,
+  DeleteResult,
   DoctorData,
+  ExportOutput,
+  ExportPreview,
+  ImportResult,
+  InspectionReport,
   LogEntrySummary,
   MilestoneSummary,
   NoteDetail,
@@ -386,5 +391,82 @@ export class CoreClient {
       args.push('--limit', options.limit.toString());
     }
     return this.execute<SearchResult[]>(args, projectDir);
+  }
+
+  public async previewExport(
+    projectDir: string,
+    redactPaths: boolean = false
+  ): Promise<ExportPreview> {
+    const args = ['export', '--preview'];
+    if (redactPaths) {
+      args.push('--redact-paths');
+    }
+    return this.execute<ExportPreview>(args, projectDir);
+  }
+
+  public async export(
+    projectDir: string,
+    options: {
+      format: string;
+      outputPath?: string;
+      redactPaths?: boolean;
+    }
+  ): Promise<ExportOutput> {
+    const args = ['export', '--format', options.format];
+    if (options.outputPath) {
+      args.push('--output', options.outputPath);
+    }
+    if (options.redactPaths) {
+      args.push('--redact-paths');
+    }
+    return this.execute<ExportOutput>(args, projectDir);
+  }
+
+  public async import(
+    projectDir: string,
+    bundlePath: string,
+    options: {
+      onConflict?: string;
+      dryRun?: boolean;
+      noBackup?: boolean;
+    } = {}
+  ): Promise<ImportResult> {
+    const args = ['import', bundlePath];
+    if (options.onConflict) {
+      args.push('--on-conflict', options.onConflict);
+    }
+    if (options.dryRun) {
+      args.push('--dry-run');
+    }
+    if (options.noBackup) {
+      args.push('--no-backup');
+    }
+    return this.execute<ImportResult>(args, projectDir);
+  }
+
+  public async inspect(
+    projectDir: string,
+    filePath?: string
+  ): Promise<InspectionReport> {
+    const args = ['inspect'];
+    if (filePath) {
+      args.push(filePath);
+    }
+    return this.execute<InspectionReport>(args, projectDir);
+  }
+
+  public async deleteData(
+    projectDir: string,
+    force: boolean = true,
+    noBackup?: boolean
+  ): Promise<DeleteResult> {
+    const args = ['delete-data'];
+    if (force) {
+      args.push('--force');
+    }
+    if (noBackup) {
+      args.push('--no-backup');
+    }
+    return this.execute<DeleteResult>(args, projectDir);
   }
 }

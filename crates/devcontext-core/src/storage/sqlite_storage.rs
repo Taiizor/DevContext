@@ -782,6 +782,55 @@ impl SqliteStorage {
         Ok(affected > 0)
     }
 
+    /// Completely deletes all context records, child tables, and search entries for a project.
+    pub fn clear_project_data(&self, project_id: Uuid) -> Result<usize> {
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| CoreError::Concurrency(e.to_string()))?;
+        let tx = conn.transaction()?;
+
+        // Explicitly clear references for project records
+        tx.execute(
+            "DELETE FROM references_links WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+
+        // Clear typed payload tables
+        tx.execute(
+            "DELETE FROM notes WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+        tx.execute(
+            "DELETE FROM decisions WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+        tx.execute(
+            "DELETE FROM milestones WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+        tx.execute(
+            "DELETE FROM log_entries WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+        tx.execute(
+            "DELETE FROM saved_commands WHERE record_id IN (SELECT id FROM records WHERE project_id = ?1);",
+            params![project_id.to_string()],
+        )?;
+
+        // Delete base records
+        let deleted = tx.execute(
+            "DELETE FROM records WHERE project_id = ?1;",
+            params![project_id.to_string()],
+        )?;
+
+        // Clear FTS5 search index entries
+        let _ = tx.execute("DELETE FROM search_index;", []);
+
+        tx.commit()?;
+        Ok(deleted)
+    }
+
     // ==========================================
     // Reference Operations
     // ==========================================

@@ -58,6 +58,18 @@ pub enum Commands {
 
     /// Full-text search across notes, decisions, milestones, logs, and commands
     Search(SearchArgs),
+
+    /// Export project context to versioned JSON, Markdown hierarchy, or portable ZIP archive
+    Export(ExportArgs),
+
+    /// Import context records from a versioned JSON bundle or portable ZIP archive
+    Import(ImportArgs),
+
+    /// Inspect an export bundle file or the current project database
+    Inspect(InspectArgs),
+
+    /// Delete all project context data safely (requires confirmation or --force)
+    DeleteData(DeleteDataArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -292,4 +304,58 @@ pub enum LogCommands {
 
     /// List development log entries
     List,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ExportArgs {
+    /// Export format target: json, markdown, or zip
+    #[arg(short, long, default_value = "json")]
+    pub format: String,
+
+    /// Destination file or folder path (defaults to generated name in project root)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Redact personal usernames and machine-specific filesystem path prefixes
+    #[arg(long)]
+    pub redact_paths: bool,
+
+    /// Show data inclusion summary preview without writing files
+    #[arg(long)]
+    pub preview: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ImportArgs {
+    /// Path to the JSON bundle or ZIP archive file to import
+    pub bundle_path: PathBuf,
+
+    /// Strategy when incoming record ID collides: skip, overwrite, or generate-new-id
+    #[arg(short = 'c', long = "on-conflict", default_value = "skip")]
+    pub on_conflict: String,
+
+    /// Validate bundle and show preview without modifying database
+    #[arg(long, visible_alias = "preview")]
+    pub dry_run: bool,
+
+    /// Skip creating automatic pre-import backup snapshot
+    #[arg(long)]
+    pub no_backup: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct InspectArgs {
+    /// Optional path to export bundle (JSON or ZIP). If omitted, inspects local project database.
+    pub file: Option<PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct DeleteDataArgs {
+    /// Required confirmation flag to proceed with complete project data deletion
+    #[arg(long)]
+    pub force: bool,
+
+    /// Skip creating automatic pre-deletion backup snapshot
+    #[arg(long)]
+    pub no_backup: bool,
 }

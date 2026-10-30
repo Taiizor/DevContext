@@ -8,10 +8,10 @@
 
 ## Project status
 
--   **Current phase:** Phase 6 --- VS Code extension MVP (Complete)
--   **Overall status:** Phase 6 complete; ready for Phase 7 approval
+-   **Current phase:** Phase 7 --- Export/import and data safety (Complete)
+-   **Overall status:** Phase 7 complete; ready for Phase 7 review and acceptance
 -   **Last updated:** 2026-10-30
--   **Current milestone:** Export/import and data safety (Pending Phase 7 authorization)
+-   **Current milestone:** Quality and release readiness (Pending Phase 8 authorization)
 -   **Current blocker:** None recorded
 
 ### Status legend
@@ -32,8 +32,8 @@
   3\. CLI MVP                                 Complete      2026-10-30        init, status, doctor, note, decision, milestone, log commands
   4\. Git integration and timeline            Complete      2026-10-30        Read-only Git adapter, ADR 0010, unified timeline CLI
   5\. Search and references                   Complete      2026-10-30        SQLite FTS5 (BM25, unicode61), ReferenceResolver, ADR 0011
-  6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 58 TS tests
-  7\. Export/import and data safety           Not started   ---               Pending user approval to begin Phase 7
+  6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 62 TS tests
+  7\. Export/import and data safety           Complete      2026-10-30        Versioned JSON, Markdown hierarchy, ZIP archives, inspection, conflict resolution, pre-operation backups, Zip Slip protections, CLI & VS Code UI
   8\. Quality and release readiness           Not started   ---               
   9\. Public MVP release                      Not started   ---               
 
@@ -43,7 +43,7 @@
 
 > Keep this section short. Move finished work to the completed log.
 
--   Phase 6 complete. Awaiting user authorization to proceed to Phase 7.
+-   Phase 7 complete and fully verified. Ready for Phase 7 review and acceptance.
 
 ## Blockers and risks
 
@@ -248,21 +248,55 @@
 
 ## Phase 7 --- Export/import and data safety
 
--   [ ] Finalize versioned JSON schema.
--   [ ] Implement Markdown export.
--   [ ] Implement portable archive export.
--   [ ] Add export preview.
--   [ ] Add path redaction.
--   [ ] Add import preview and conflict resolution.
--   [ ] Add import schema upgrades.
--   [ ] Back up before destructive imports.
--   [ ] Add data deletion command and UI.
--   [ ] Add data inspection command.
--   [ ] Add round-trip tests.
--   [ ] Test malformed and large archives.
--   [ ] Document compatibility guarantees.
+-   [x] Finalize versioned JSON schema.
+-   [x] Implement Markdown export.
+-   [x] Implement portable archive export.
+-   [x] Add export preview.
+-   [x] Add path redaction.
+-   [x] Add import preview and conflict resolution.
+-   [x] Add import schema upgrades.
+-   [x] Back up before destructive imports.
+-   [x] Add data deletion command and UI.
+-   [x] Add data inspection command.
+-   [x] Add round-trip tests.
+-   [x] Test malformed and large archives.
+-   [x] Document compatibility guarantees.
 
-**Verification evidence:** - Pending.
+**Verification evidence:**
+- **Versioned JSON & Markdown Hierarchy (`crates/devcontext-core/src/export/`):**
+  - Typed interchange data model conforming to `schemas/export-v1.schema.json` (schema 1.0.0). Rejects unsupported major versions (e.g. `2.0.0`).
+  - Human-readable Markdown export directory structure (`decisions/`, `notes/`, `milestones/`, `logs/`, `commands/`, `README.md`) with YAML frontmatter metadata and generated table of contents.
+  - Portable ZIP archives packaging `export-v1.json` at root alongside Markdown hierarchy.
+- **Privacy & Security (`sanitization.rs` & `archive.rs`):**
+  - Workspace-relative path relativization (`./src/main.rs`).
+  - Cross-platform machine-specific user directory redaction (`~user/...`) and explicit `--redact-paths` sanitization (`[REDACTED_EXTERNAL_PATH]`).
+  - Strict Zip Slip traversal protection: rejects `..` path segments, absolute archive paths, null bytes, and out-of-sandbox target paths.
+- **Data Safety, Conflict Resolution & Inspection:**
+  - Conflict resolution strategies (`skip`, `overwrite`, `generate-new-id`) with `--dry-run` simulation mode.
+  - Automatic pre-import SQLite backup snapshot created in `.devcontext/backups/import-backup-<timestamp>.db` before modifying records.
+  - Complete project data deletion (`devcontext delete-data --force`) with automatic pre-delete snapshot (`pre-delete-backup-<timestamp>.db`).
+  - Offline inspection command (`devcontext inspect [file]`) auditing record counts and conflicts prior to import.
+- **CLI Subcommands (`apps/cli/src/commands/`):**
+  - `devcontext export [--format <json|markdown|zip>] [--out <path>] [--preview] [--redact-paths] [--json]`
+  - `devcontext import <file> [--on-conflict <skip|overwrite|generate-new-id>] [--dry-run] [--json]`
+  - `devcontext inspect [file] [--json]`
+  - `devcontext delete-data [--force] [--json]`
+- **VS Code Extension Integration (`apps/vscode-extension/`):**
+  - `devcontext.export`: QuickPick format selector, interactive preview modal detailing record counts and path redaction warning, and user confirmation.
+  - `devcontext.import`: Open dialog, safety guarantee confirmation, and client import execution.
+  - `devcontext.inspect`: QuickPick audit modal displaying bundle record counts and schema version.
+  - `devcontext.deleteData`: Dual-confirmation destructive safety dialog with automatic backup assurance.
+- **Automated Verification:**
+  - `cargo test -p devcontext-core --test export_import_test`: 7 integration tests passing.
+  - `cargo test -p devcontext-cli --test cli_export_import_test`: 1 CLI integration test passing.
+  - `cargo test --workspace`: 84 total Rust tests passing across core and CLI with 0 failures.
+  - `cargo clippy --all-targets --all-features -- -D warnings`: 0 warnings.
+  - `cargo fmt --check`: 0 issues.
+  - `cd apps/vscode-extension && bun test`: 68 passing tests across 11 files (including `real_export_import_e2e.test.ts` and `export_import_preview.test.ts`).
+  - `bun run test:integration`: Real VS Code Extension Development Host verified all 26 registered commands, reference opening, and export/import triggers with exit code 0.
+  - `bun run package`: Packaged clean `devcontext-0.1.0.vsix` with 0 errors.
+- **Documentation:**
+  - Specification created at `docs/architecture/export-and-data-safety.md`.
 
 ## Phase 8 --- Quality and release readiness
 
@@ -309,6 +343,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-30   Phase 7: Export/Import & Data Safety       Implemented versioned JSON (export-v1.json), human-readable Markdown hierarchy, portable ZIP archives, path sanitization/redaction, conflict strategies, dry-run, pre-import/pre-delete automatic backups, data inspection, complete deletion, and VS Code commands. 84 Rust tests + 68 TS tests (Bun) + Real VS Code Extension Host (exit code 0) passing.
   2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions including real Git commit diffs, status bar, and test suite). Real Extension Host verification + 62 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
   2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), Turkish search normalization, BM25 ranking, ReferenceResolver with canonical traversal security, CLI search command, and test suite. 72 Rust tests + 2 TS tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.

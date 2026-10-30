@@ -221,3 +221,71 @@ export interface HandshakeResult {
   protocolVersion: string | null;
   message: string;
 }
+
+/**
+ * Result returned by `devcontext export --json`.
+ */
+export interface ExportOutput {
+  project_name: string;
+  format: string;
+  output_path: string;
+  total_records: number;
+  schema_version: string;
+}
+
+export type ExportResult = ExportOutput;
+
+/**
+ * Preview summary returned by `devcontext export --preview --json`.
+ */
+export interface ExportPreview {
+  project_name: string;
+  notes_count: number;
+  decisions_count: number;
+  milestones_count: number;
+  logs_count: number;
+  commands_count: number;
+  references_count: number;
+  total_records: number;
+  redact_paths: boolean;
+}
+
+/**
+ * Result returned by `devcontext import <file> --json`.
+ */
+export interface ImportResult {
+  dry_run: boolean;
+  total_incoming: number;
+  imported_count: number;
+  skipped_count: number;
+  overwritten_count: number;
+  conflicts_count: number;
+  backup_path?: string | null;
+}
+
+/**
+ * Detailed inspection report returned by `devcontext inspect [file] --json`.
+ */
+export interface InspectionReport {
+  source_type: string;
+  schema_version?: string;
+  project_name: string;
+  project_id: string;
+  notes_count: number;
+  decisions_count: number;
+  milestones_count: number;
+  logs_count: number;
+  commands_count: number;
+  references_count: number;
+  total_records: number;
+  conflicts_with_existing: number;
+}
+
+/**
+ * Result returned by `devcontext delete-data --force --json`.
+ */
+export interface DeleteResult {
+  project_name: string;
+  deleted_records_count: number;
+  backup_path?: string | null;
+}

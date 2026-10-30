@@ -31,6 +31,18 @@ pub fn run(args: CliArgs) -> i32 {
         Some(Commands::Search(cmd)) => {
             commands::search::handle_search(args.project_dir, cmd, &renderer)
         }
+        Some(Commands::Export(cmd)) => {
+            commands::export::handle_export(args.project_dir, cmd, &renderer)
+        }
+        Some(Commands::Import(cmd)) => {
+            commands::import::handle_import(args.project_dir, cmd, &renderer)
+        }
+        Some(Commands::Inspect(cmd)) => {
+            commands::inspect::handle_inspect(args.project_dir, cmd, &renderer)
+        }
+        Some(Commands::DeleteData(cmd)) => {
+            commands::delete_data::handle_delete_data(args.project_dir, cmd, &renderer)
+        }
         None => {
             if args.json {
                 renderer.error(
@@ -61,6 +73,7 @@ pub fn run(args: CliArgs) -> i32 {
                 CoreError::Sqlite(e) => ("DATABASE_ERROR", e.to_string()),
                 CoreError::Io(e) => ("IO_ERROR", e.to_string()),
                 CoreError::Serialization(e) => ("SERIALIZATION_ERROR", e.to_string()),
+                CoreError::Zip(e) => ("ARCHIVE_ERROR", e.to_string()),
             };
             renderer.error(code, msg);
             1

@@ -12,6 +12,10 @@ pub mod storage;
 pub mod workspace;
 
 pub use error::{CoreError, Result};
+pub use export::{
+    ConflictStrategy, DeleteResult, ExportBundle, ExportFormat, ExportOptions, ExportPreview,
+    ExportService, ImportOptions, ImportResult, InspectionReport,
+};
 pub use git::{
     GitAdapter, GitCommitInfo, TimelineEvent, TimelineEventType, TimelineFilter, TimelineService,
     TimelineView,

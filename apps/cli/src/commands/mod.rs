@@ -1,6 +1,10 @@
 pub mod decision;
+pub mod delete_data;
 pub mod doctor;
+pub mod export;
+pub mod import;
 pub mod init;
+pub mod inspect;
 pub mod log;
 pub mod milestone;
 pub mod note;

@@ -9,6 +9,9 @@ pub enum CoreError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("Archive error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+
     #[error("Storage error: {0}")]
     Storage(String),
 

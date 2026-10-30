@@ -47,6 +47,8 @@ exports.run = async function() {
     'devcontext.openReference',
     'devcontext.export',
     'devcontext.import',
+    'devcontext.inspect',
+    'devcontext.deleteData',
     'devcontext.refreshViews',
     'devcontext.timelineFilterAll',
     'devcontext.timelineFilterCommits',
@@ -205,10 +207,12 @@ exports.run = async function() {
     }
   }
 
-  // 7. Verify Export and Import triggers
+  // 7. Verify Export, Import, Inspect, and DeleteData triggers
   await vscode.commands.executeCommand('devcontext.export');
   await vscode.commands.executeCommand('devcontext.import');
-  console.log('[ExtensionHost] Export and Import command triggers verified in Extension Host!');
+  await vscode.commands.executeCommand('devcontext.inspect');
+  await vscode.commands.executeCommand('devcontext.deleteData');
+  console.log('[ExtensionHost] Export, Import, Inspect, and DeleteData command triggers verified in Extension Host!');
 
   console.log('[ExtensionHost] All Real Extension Host checks passed successfully!');
 };
