@@ -144,7 +144,7 @@ suite('Real Rust Core CLI & JSON IPC Integration', () => {
     it('executes real devcontext doctor returning storage and schema health', async () => {
       const doctor = await client.doctor(tempDir);
 
-      expect(doctor.cli_version).toBe('0.1.0');
+      expect(doctor.cli_version).toBe('0.1.1');
       expect(doctor.protocol_version).toBe('1.0');
       expect(doctor.project_detected).toBe(true);
       expect(doctor.project_info).not.toBeNull();

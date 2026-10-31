@@ -6,7 +6,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["DevContext Contributors"]
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ rust-version = "1.80.0"
 description = "Local-first project memory system for software development"
 
 [workspace.dependencies]
-devcontext-core = { path = "crates/devcontext-core", version = "0.1.0" }
+devcontext-core = { path = "crates/devcontext-core", version = "0.1.1" }
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

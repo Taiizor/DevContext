@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.1] - 2026-10-31
+
+### Changed
+- **Crates.io Documentation & Manifests:**
+  - Added rich, standalone `README.md` files for both `devcontext-core` and `devcontext-cli` with usage examples, module architecture maps, and absolute documentation links.
+  - Resolved inter-crate dependency versioning and package metadata for crates.io publishing.
+- **VS Code Extension Activity Bar Icon:**
+  - Redesigned `media/icon.svg` as a dedicated 24x24 transparent monochrome vector icon (`currentColor`) for the VS Code Activity Bar, eliminating solid white squircle mask artifact.
+  - Preserved full 256x256 colored branding vector in `media/logo.svg` and Marketplace PNG in `media/icon.png`.
+- **Version Bump:**
+  - Bumped Cargo workspace packages (`devcontext-core`, `devcontext-cli`) and VS Code extension to `v0.1.1`.
+
+---
+
 ## [0.1.0] - 2026-10-31
 
 ### Added

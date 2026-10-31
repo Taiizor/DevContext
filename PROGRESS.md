@@ -11,7 +11,7 @@
 -   **Current phase:** Phase 9 --- Public MVP release (Prepared for Publication - Awaiting Approval Gates)
 -   **Overall status:** Release artifacts built, verified, and packaged; awaiting publication authorization
 -   **Last updated:** 2026-10-31
--   **Current milestone:** Public MVP Release v0.1.0
+-   **Current milestone:** Public MVP Release v0.1.1
 -   **Current blocker:** None recorded (Publication approval gates pending user authorization)
 
 ### Status legend
@@ -412,6 +412,7 @@ Add newest entries first.
 
   Date         Phase / task                               Change                                                                Verification evidence
   ------------ ------------------------------------------ --------------------------------------------------------------------- ---------------------------------------------------------------------------------
+  2026-10-31   Phase 9: Version Bump to v0.1.1            Bumped version to 0.1.1 across Cargo workspace, core version assert, and VS Code package.json. Packaged `devcontext-memory-0.1.1.vsix` (`9d4aaea0babedb29602ed8ea3e033c6ded4c79efc0e684ca3d2f461315c579c0`). 110 Rust tests + 68 TS tests passing.
   2026-10-31   Phase 9: Crate-specific README Redesign    Created comprehensive standalone READMEs for `devcontext-core` (code examples, module map, docs.rs badges) and `devcontext-cli` (commands, quickstart, cargo install). Eliminated broken relative links. Verified `cargo package`.
   2026-10-31   Phase 9: Crates.io Public Release          Published `devcontext-core` v0.1.0 and `devcontext-cli` v0.1.0 to crates.io. Live packages verified via `cargo search devcontext`. Updated installation guides with `cargo install devcontext-cli`.
   2026-10-31   Phase 9: Activity Bar Monochrome Icon      Redesigned `media/icon.svg` as a dedicated 24x24 transparent monochrome SVG (`currentColor`) for VS Code Activity Bar, eliminating solid white squircle mask artifact. Preserved full branding vector in `media/logo.svg` and Marketplace PNG in `media/icon.png`. Repackaged VSIX (`f0b11d5a352d2d61b497e279d11e9891ce729464dabe1fa0f98010bb1f8b9983`). 68 TS tests passing.
