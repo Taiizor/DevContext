@@ -9,9 +9,9 @@
 ## Project status
 
 -   **Current phase:** Phase 9 --- Public MVP release (Complete & Verified)
--   **Overall status:** Complete; crates.io, VS Code Marketplace, and GitHub Release v0.1.1 published with multi-platform binaries
+-   **Overall status:** v0.1.2 release prepared; six-platform distribution architecture implemented and verified
 -   **Last updated:** 2026-10-31
--   **Current milestone:** Public MVP Release v0.1.1
+-   **Current milestone:** Six-Platform VSIX Distribution Release v0.1.2
 -   **Current blocker:** None
 
 ### Status legend
@@ -427,6 +427,7 @@ Add newest entries first.
   2026-10-30   Phase 7: Export/Import & Data Safety       Implemented versioned JSON (export-v1.json), human-readable Markdown hierarchy, portable ZIP archives, path sanitization/redaction, conflict strategies, dry-run, pre-import/pre-delete automatic backups, data inspection, complete deletion, and VS Code commands. 84 Rust tests + 68 TS tests (Bun) + Real VS Code Extension Host (exit code 0) passing.
   2026-10-30   Phase 6: VS Code Extension MVP             Implemented VS Code Extension MVP (ADR 0012, manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference actions including real Git commit diffs, status bar, and test suite). Real Extension Host verification + 62 TS tests (Bun) + 72 Rust tests passing. VSIX package clean.
   2026-10-30   Phase 5: Search & References               Implemented SQLite FTS5 search (ADR 0011), Turkish search normalization, BM25 ranking, ReferenceResolver with canonical traversal security, CLI search command, and test suite. 72 Rust tests + 2 TS tests passing.
+  2026-10-31   Version Bump to v0.1.2                     Bumped workspace package version and devcontext-core to 0.1.2 in Cargo.toml and Cargo.lock, updated VS Code extension to 0.1.2 in package.json, updated test assertions (lib.rs, real_core_integration.test.ts), added CHANGELOG.md 0.1.2 section, and updated README.md. All tests passing.
   2026-10-31   Six-Platform VSIX Distribution Architecture Implemented isolated temporary packaging (`packageTarget.ts`), comprehensive ZIP/PE/ELF/Mach-O metadata validator (`validateVsix.ts`), strict-containment bundled self-healing in `CoreLocator`, 6-platform release CI workflow (`release.yml`), and bundled distribution E2E tests (`bundled_extension_e2e.test.ts`). All 74 tests passing.
   2026-10-30   Phase 4: Git Integration & Timeline        Implemented read-only GitAdapter (ADR 0010), TimelineService, CLI timeline command, and integration tests. 48 tests passing.
   2026-10-30   Phase 3: Independent CLI MVP               Implemented CLI subcommands (init, status, doctor, note, decision, milestone, log), JSON protocol, auto-discovery, and integration test suite. 41 tests passing.

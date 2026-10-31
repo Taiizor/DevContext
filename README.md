@@ -17,7 +17,7 @@ Git records *how* files changed. DevContext records the human and technical cont
 
 ## Status
 
-DevContext is at **v0.1.1 (Public Release)** (**Phase 9 — Public MVP Release**).
+DevContext is at **v0.1.2** (**Six-Platform VSIX Distribution Architecture**).
 
 - Architecture decisions: [`docs/decisions/`](docs/decisions/)
 - Product requirements: [`docs/requirements/product-requirements.md`](docs/requirements/product-requirements.md)

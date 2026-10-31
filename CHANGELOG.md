@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] - 2026-10-31
+
+### Added
+- **Six-Platform VSIX Distribution Architecture:**
+  - Introduced platform-specific VS Code extension packaging (`win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`) under the single canonical Marketplace identity (`Taiizor.devcontext-memory`).
+  - Bundled the pre-compiled platform-native `devcontext` CLI binary directly inside each platform VSIX package (`extension/bin/devcontext` or `devcontext.exe`), enabling zero-configuration installation without separate CLI, Rust, or Cargo installation.
+  - Layered executable resolution in `CoreLocator`: preserves priority for explicit user override (`devcontext.core.executablePath`), bundled binary, workspace development builds (`target/debug` or `target/release`), and system PATH fallback.
+  - Bundled distribution E2E test suite (`bundled_extension_e2e.test.ts`) covering binary discovery, priority overrides, handshake, SQLite FTS5 search, and containment security.
+- **Isolated Staging & Package Validation Pipeline:**
+  - Replaced shared `bin/` packaging with isolated, temporary staging (`apps/vscode-extension/scripts/packageTarget.ts`) using OS `mkdtemp` to prevent binary cross-contamination.
+  - Added standalone VSIX archive and binary validator (`scripts/validateVsix.ts`) checking central directory entries, magic byte headers (PE x64 `0x8664`, PE ARM64 `0xaa64`, ELF x64 `0x3e`, ELF ARM64 `0xb7`, Mach-O x64 `0x01000007`, Mach-O ARM64 `0x0100000c`), Unix executable permissions (`0755`), and license file staging.
+  - Added CodeQL security scanning workflow (`.github/workflows/codeql.yml`) for Rust and TypeScript/JavaScript.
+
+### Changed
+- **Dual Licensing Packaging & Documentation:**
+  - Added root `LICENSE` descriptor explaining the dual-license model under MIT and Apache-2.0, explicitly referencing `LICENSE-MIT` and `LICENSE-APACHE`.
+  - Updated packaging scripts to stage and validate `LICENSE`, `LICENSE-MIT`, and `LICENSE-APACHE` inside all VSIX bundles.
+- **Extension Host Test Portability:**
+  - Removed machine-specific VS Code paths from `runExtensionHost.ts`.
+  - Implemented multi-platform executable discovery respecting `VSCODE_PATH`, standard installation locations across Windows, Linux, and macOS, and falling back to `@vscode/test-electron` automated download.
+- **CoreLocator Self-Healing Security Hardening:**
+  - Added strict path containment, regular file validation, symlink rejection, and missing `X_OK` permission check before applying executable permissions exclusively to bundled binaries on Unix platforms.
+- **Target Verification Status:**
+  - Windows x64 (`win32-x64`): Fully verified locally end-to-end (compilation, packaging, PE header validation, bundled E2E tests, and real Extension Host execution).
+  - Windows ARM64 (`win32-arm64`), Linux x64 (`linux-x64`), Linux ARM64 (`linux-arm64`), macOS Intel (`darwin-x64`), macOS Apple Silicon (`darwin-arm64`): Toolchain, cross-compiler, linker, glibc baseline (2.35+), and isolated staging configurations verified; binary execution verified via CI workflow matrix.
+
+---
+
 ## [0.1.1] - 2026-10-31
 
 ### Changed
