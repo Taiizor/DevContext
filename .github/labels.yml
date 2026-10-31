@@ -1,0 +1,54 @@
+# DevContext Label Definitions
+# Synchronized automatically by .github/workflows/labels.yml
+
+# Area labels
+- name: "area:core"
+  color: "0e8a16"
+  description: "Core domain logic, SQLite storage, and FTS5"
+
+- name: "area:cli"
+  color: "1d76db"
+  description: "Command line interface (devcontext binary)"
+
+- name: "area:vscode"
+  color: "007acc"
+  description: "VS Code extension UI, IPC client, and TreeViews"
+
+- name: "area:docs"
+  color: "5319e7"
+  description: "Documentation, ADRs, and website/readme guides"
+
+- name: "area:ci"
+  color: "fbca04"
+  description: "GitHub Actions workflows, build scripts, and release CI"
+
+# Type labels
+- name: "dependencies"
+  color: "0366d6"
+  description: "Pull requests that update a dependency file"
+
+- name: "type:security"
+  color: "e11d21"
+  description: "Security, secret protection, and path traversal defenses"
+
+- name: "type:performance"
+  color: "d4c5f9"
+  description: "Performance optimizations and benchmarks"
+
+# Platform labels
+- name: "platform:windows"
+  color: "0078d7"
+  description: "Windows-specific behavior, PowerShell, or paths"
+
+- name: "platform:linux"
+  color: "fcc624"
+  description: "Linux-specific behavior, packaging, or paths"
+
+- name: "platform:macos"
+  color: "bfe5bf"
+  description: "macOS-specific behavior or packaging"
+
+# Status & Triage labels
+- name: "status:needs-triage"
+  color: "e99695"
+  description: "Awaiting review and triage by maintainers"
