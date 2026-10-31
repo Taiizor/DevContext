@@ -10,27 +10,41 @@ permissions:
 
 jobs:
   build-binaries:
-    name: Build Binary (${{ matrix.target }})
+    name: Build Binary (${{ matrix.platform_target }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: devcontext
-            asset_name: devcontext-${{ github.ref_name }}-linux-x64.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: devcontext.exe
+            binary_name: devcontext.exe
+            platform_target: win32-x64
             asset_name: devcontext-${{ github.ref_name }}-windows-x64.zip
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            binary_name: devcontext.exe
+            platform_target: win32-arm64
+            asset_name: devcontext-${{ github.ref_name }}-windows-arm64.zip
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary_name: devcontext
+            platform_target: linux-x64
+            asset_name: devcontext-${{ github.ref_name }}-linux-x64.tar.gz
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            binary_name: devcontext
+            platform_target: linux-arm64
+            asset_name: devcontext-${{ github.ref_name }}-linux-arm64.tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: devcontext
+            binary_name: devcontext
+            platform_target: darwin-arm64
             asset_name: devcontext-${{ github.ref_name }}-macos-arm64.tar.gz
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: devcontext
+            binary_name: devcontext
+            platform_target: darwin-x64
             asset_name: devcontext-${{ github.ref_name }}-macos-x64.tar.gz
 
     steps:
@@ -42,14 +56,31 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install ARM64 Cross Compilation Toolchain (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
       - name: Build Release Binary
+        env:
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          AR_aarch64_unknown_linux_gnu: aarch64-linux-gnu-ar
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         run: cargo build --release --target ${{ matrix.target }} -p devcontext-cli
+
+      - name: Inspect Glibc Symbol Baseline (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "=== Glibc Requirements for target/${{ matrix.target }}/release/${{ matrix.binary_name }} ==="
+          readelf --version-info target/${{ matrix.target }}/release/${{ matrix.binary_name }} | grep -E "GLIBC_" | sort -u || true
 
       - name: Package Archive (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir staging
-          cp target/${{ matrix.target }}/release/devcontext staging/
+          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} staging/
           cp README.md LICENSE-MIT LICENSE-APACHE staging/
           cd staging
           tar -czvf ../${{ matrix.asset_name }} *
@@ -60,19 +91,27 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path staging
-          Copy-Item target/${{ matrix.target }}/release/devcontext.exe staging/
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.binary_name }} staging/
           Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE staging/
           Compress-Archive -Path staging/* -DestinationPath ${{ matrix.asset_name }}
 
-      - name: Upload Binary Artifact
+      - name: Upload Standalone Archive Artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}
           if-no-files-found: error
 
-  build-vsix:
-    name: Package VS Code VSIX
+      - name: Upload Raw Binary Artifact for VSIX Packaging
+        uses: actions/upload-artifact@v7
+        with:
+          name: raw-binary-${{ matrix.platform_target }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  package-vsix:
+    name: Package and Validate Platform-Specific VSIXs
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -84,23 +123,57 @@ jobs:
           bun-version: latest
 
       - name: Install Extension Dependencies
-        working-directory: apps/vscode-extension
-        run: bun install
+        run: bun install --cwd apps/vscode-extension
 
-      - name: Package Extension VSIX
-        working-directory: apps/vscode-extension
-        run: bun run package
+      - name: Verify Version Synchronization
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          CARGO_VER=$(cargo metadata --no-deps --format-version 1 | bun -e 'const d = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(d.packages.find(p => p.name === "devcontext-cli").version);')
+          PKG_VER=$(bun -e 'console.log(require("./apps/vscode-extension/package.json").version);')
+          echo "Git Tag Version: $TAG_VER"
+          echo "Cargo Version:   $CARGO_VER"
+          echo "Package Version: $PKG_VER"
+          if [ "$TAG_VER" != "$CARGO_VER" ] || [ "$TAG_VER" != "$PKG_VER" ]; then
+            echo "Error: Version mismatch! Git tag ($TAG_VER), Cargo ($CARGO_VER), and package.json ($PKG_VER) must match."
+            exit 1
+          fi
 
-      - name: Upload VSIX Artifact
+      - name: Download Raw Binaries
+        uses: actions/download-artifact@v8
+        with:
+          path: raw-binaries
+
+      - name: Package and Validate 6 Targets
+        run: |
+          targets=("win32-x64" "win32-arm64" "linux-x64" "linux-arm64" "darwin-x64" "darwin-arm64")
+          mkdir -p dist-vsix
+          for t in "${targets[@]}"; do
+            echo "=========================================================="
+            echo "Packaging target: $t"
+            echo "=========================================================="
+            bin_file=$(find raw-binaries/raw-binary-$t -type f \( -name "devcontext" -o -name "devcontext.exe" \) | head -n 1)
+            if [ -z "$bin_file" ] || [ ! -f "$bin_file" ]; then
+              echo "Error: Binary not found for target $t in raw-binaries/raw-binary-$t"
+              exit 1
+            fi
+            bun run apps/vscode-extension/scripts/packageTarget.ts --target "$t" --binary "$bin_file" --outDir dist-vsix
+          done
+
+          echo "=========================================================="
+          echo "Validating all packaged VSIXs"
+          echo "=========================================================="
+          bun run scripts/validateVsix.ts --dir dist-vsix
+
+      - name: Upload Platform VSIX Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: devcontext-vsix
-          path: apps/vscode-extension/*.vsix
+          name: platform-vsix-packages
+          path: dist-vsix/*.vsix
           if-no-files-found: error
 
   create-release:
     name: Create GitHub Release Draft
-    needs: [build-binaries, build-vsix]
+    needs: [build-binaries, package-vsix]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -111,10 +184,18 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Filter and Organize Release Assets
+        working-directory: release-assets
+        run: |
+          # Keep only .tar.gz, .zip, and .vsix files
+          find . -maxdepth 1 -type f ! -name "*.tar.gz" ! -name "*.zip" ! -name "*.vsix" -delete || true
+          ls -la
+
       - name: Generate Checksums
         working-directory: release-assets
         run: |
           find . -maxdepth 1 -type f ! -name "SHA256SUMS.txt" -exec sha256sum {} + | sed 's|\./||' | sort > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v3

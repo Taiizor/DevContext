@@ -23,14 +23,29 @@ During development (Phases 1 through 8):
 ## 2. Release Artifacts
 
 Each release generates:
-1. **CLI Binaries:**
-   - Windows x64 & ARM64 (`devcontext-x86_64-pc-windows-msvc.zip`)
-   - Linux x64 & ARM64 (`devcontext-x86_64-unknown-linux-gnu.tar.gz`)
-   - macOS Intel & Apple Silicon (`devcontext-universal-apple-darwin.tar.gz`)
-2. **VS Code Extension Package:**
-   - `devcontext-vscode-X.Y.Z.vsix`
-3. **Release Notes:**
+1. **CLI Standalone Binaries:**
+   - Windows x64: `devcontext-vX.Y.Z-windows-x64.zip` (`x86_64-pc-windows-msvc`)
+   - Windows ARM64: `devcontext-vX.Y.Z-windows-arm64.zip` (`aarch64-pc-windows-msvc`)
+   - Linux x64: `devcontext-vX.Y.Z-linux-x64.tar.gz` (`x86_64-unknown-linux-gnu`, glibc 2.35+ baseline)
+   - Linux ARM64: `devcontext-vX.Y.Z-linux-arm64.tar.gz` (`aarch64-unknown-linux-gnu`)
+   - macOS Intel: `devcontext-vX.Y.Z-macos-x64.tar.gz` (`x86_64-apple-darwin`, macOS 11.0+)
+   - macOS Apple Silicon: `devcontext-vX.Y.Z-macos-arm64.tar.gz` (`aarch64-apple-darwin`, macOS 11.0+)
+2. **Platform-Specific VS Code Extension Packages (VSIX):**
+   - Windows x64: `devcontext-memory-X.Y.Z-win32-x64.vsix`
+   - Windows ARM64: `devcontext-memory-X.Y.Z-win32-arm64.vsix`
+   - Linux x64: `devcontext-memory-X.Y.Z-linux-x64.vsix`
+   - Linux ARM64: `devcontext-memory-X.Y.Z-linux-arm64.vsix`
+   - macOS Intel: `devcontext-memory-X.Y.Z-darwin-x64.vsix`
+   - macOS Apple Silicon: `devcontext-memory-X.Y.Z-darwin-arm64.vsix`
+3. **Checksum Verification File:**
+   - `SHA256SUMS.txt` listing SHA-256 hashes for all 12 release artifacts.
+4. **Release Notes:**
    - Summarizing changes, deprecations, migration guides, and SHA-256 checksums.
+
+### Distribution & Publishing Policy
+- Standalone CLI binaries and VSIX packages are built, validated, and uploaded to a GitHub Release Draft via GitHub Actions.
+- Visual Studio Marketplace publishing is strictly **MANUAL** and managed by authorized publishers using `bunx @vscode/vsce publish --packagePath <vsix>`.
+- CI/CD pipelines never publish to Visual Studio Marketplace and require no Marketplace secrets (`VSCE_PAT`).
 
 ---
 

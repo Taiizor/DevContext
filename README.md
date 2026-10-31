@@ -42,17 +42,25 @@ DevContext is at **v0.1.1 (Public Release)** (**Phase 9 — Public MVP Release**
 
 ## Installation
 
-### CLI (Rust / Cargo)
-```bash
-cargo install devcontext-cli
-```
-*Binary installed as `devcontext`. Pre-compiled binaries for Windows, Linux, and macOS are also available on [GitHub Releases](https://github.com/Taiizor/DevContext/releases).*
-
-### VS Code Extension
+### VS Code Extension (Recommended)
 Install **DevContext by Taiizor** (`Taiizor.devcontext-memory`) from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=Taiizor.devcontext-memory) or via command line:
 ```bash
 code --install-extension Taiizor.devcontext-memory
 ```
+*Zero-configuration out of the box:* The extension package automatically includes the pre-compiled native `devcontext` engine for your platform (`win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `darwin-x64`, or `darwin-arm64`). **No separate CLI installation is required.**
+
+### Standalone CLI (Optional / Headless Environments)
+If using DevContext purely in terminal or CI environments without VS Code:
+```bash
+cargo install devcontext-cli
+```
+*Pre-compiled standalone binaries for all six supported architectures are also available on [GitHub Releases](https://github.com/Taiizor/DevContext/releases).*
+
+#### Platform Compatibility Baseline
+- **Windows:** Windows 10/11 x64 and ARM64.
+- **Linux:** Linux distributions with glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+).
+- **macOS:** macOS 11.0+ (Big Sur, Monterey, Ventura, Sonoma, Sequoia) on Intel and Apple Silicon.
+  - *Gatekeeper Note:* Installing via the VS Code Marketplace UI operates seamlessly. If manually installing a downloaded `.vsix` on macOS, remove any browser quarantine attribute if prompted: `xattr -d com.apple.quarantine devcontext-memory-*.vsix`.
 
 ---
 

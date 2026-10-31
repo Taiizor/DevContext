@@ -300,12 +300,15 @@
     "test": "bun test",
     "test:integration": "bun run build && bun run scripts/runExtensionHost.ts",
     "build": "bun build src/extension.ts --outfile dist/extension.js --target node --external vscode",
-    "package": "bun run build && bunx @vscode/vsce package --no-dependencies"
+    "package": "bun run build && bunx @vscode/vsce package --no-dependencies",
+    "package:target": "bun run scripts/packageTarget.ts",
+    "validate:vsix": "bun run ../../scripts/validateVsix.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "4.1.0",
     "typescript": "^7.0.2"
   },
   "icon": "media/icon.png"

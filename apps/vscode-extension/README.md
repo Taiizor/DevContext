@@ -30,15 +30,32 @@ DevContext is a local-first, privacy-by-default developer memory extension. It p
 
 ---
 
-## Core Binary Resolution
+## Zero-Configuration Bundled Architecture
 
-The DevContext extension connects to the native `devcontext` CLI binary using structured, typed JSON IPC. It locates the binary in the following priority order:
+DevContext is published to the Visual Studio Marketplace as **platform-specific VSIX packages** across six target architectures:
+- `win32-x64` (Windows 64-bit Intel/AMD)
+- `win32-arm64` (Windows on ARM64)
+- `linux-x64` (Linux 64-bit, glibc 2.35+)
+- `linux-arm64` (Linux ARM64, glibc 2.35+)
+- `darwin-x64` (macOS Intel, 11.0+)
+- `darwin-arm64` (macOS Apple Silicon, 11.0+)
 
-1. **Configured Path:** `devcontext.core.executablePath` in VS Code settings.
-2. **Bundled Binary:** Platform-specific binary bundled in the extension package (if using a platform VSIX).
-3. **System PATH:** Standard system executable resolution.
+When you install DevContext from the Marketplace, VS Code automatically downloads the package containing only the native `devcontext` engine compiled for your machine. **No manual installation of Rust, Cargo, or CLI binaries is required.**
 
-To test your core binary connection, run **DevContext: Run Doctor Diagnostic** from the Command Palette (`Ctrl+Shift+P`).
+### Layered Binary Resolution & Overrides
+
+For advanced users and contributors, the extension locates the executable in the following strict priority sequence:
+
+1. **Explicit User Setting:** `devcontext.core.executablePath` in VS Code Settings (overrides bundled binary).
+2. **Bundled Platform Binary:** The pre-compiled native binary bundled at `bin/devcontext` or `bin/devcontext.exe`.
+3. **Workspace Development Build:** `target/debug/` or `target/release/` in active repository workspace.
+4. **System PATH:** Globally installed `devcontext` executable.
+
+To test your core binary connection and health, run **DevContext: Run Doctor Diagnostic** (`devcontext.doctor`) from the Command Palette (`Ctrl+Shift+P`).
+
+### Platform & OS Considerations
+- **Linux:** Requires glibc 2.35 or newer (Ubuntu 22.04+, Debian 12+, Fedora 36+).
+- **macOS:** Native arm64 and x86_64 binaries are compatible with macOS 11.0+. When installed from Marketplace, execution is seamless. For manual VSIX installations, ensure quarantine flags are cleared if prompted by Gatekeeper (`xattr -d com.apple.quarantine <vsix>`).
 
 ---
 

@@ -42,12 +42,14 @@ export class CoreLocator {
     if (extensionPath) {
       const platformKey = `${process.platform}-${os.arch()}`;
       const bundledPath = path.join(extensionPath, 'bin', platformKey, binaryName);
+      this.ensureBundledExecutable(extensionPath, bundledPath);
       if (this.isExecutableFile(bundledPath)) {
         return bundledPath;
       }
 
       // Fallback for unarchived or flat bin/ layout
       const flatBundledPath = path.join(extensionPath, 'bin', binaryName);
+      this.ensureBundledExecutable(extensionPath, flatBundledPath);
       if (this.isExecutableFile(flatBundledPath)) {
         return flatBundledPath;
       }
@@ -73,6 +75,54 @@ export class CoreLocator {
     }
 
     return null;
+  }
+
+  /**
+   * Safely ensures executable permissions (0755) on a candidate bundled binary.
+   *
+   * Strict safety constraints:
+   * 1. Only applies on non-Windows platforms.
+   * 2. Only applies if the candidate file exists and is a regular file.
+   * 3. Explicitly rejects symlinks (!lstat.isSymbolicLink()).
+   * 4. Enforces strict path containment: canonical candidate path must reside inside
+   *    canonical extensionPath/bin directory.
+   * 5. Only modifies permissions if execution permission (X_OK) is missing.
+   * 6. Never touches user-configured paths or system PATH.
+   */
+  public static ensureBundledExecutable(extensionPath: string, candidatePath: string): void {
+    if (process.platform === 'win32') {
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(candidatePath)) {
+        return;
+      }
+
+      const lstat = fs.lstatSync(candidatePath);
+      if (lstat.isSymbolicLink() || !lstat.isFile()) {
+        return;
+      }
+
+      const realExt = fs.realpathSync(extensionPath);
+      const realCandidate = fs.realpathSync(candidatePath);
+      const allowedBinPrefix = path.join(realExt, 'bin') + path.sep;
+
+      if (!realCandidate.startsWith(allowedBinPrefix)) {
+        return;
+      }
+
+      // Check if already executable
+      try {
+        fs.accessSync(realCandidate, fs.constants.X_OK);
+        return;
+      } catch {
+        // Missing execute permission: self-heal by applying 0755 exclusively to bundled binary
+        fs.chmodSync(realCandidate, 0o755);
+      }
+    } catch {
+      // Ignore errors; resolution will safely proceed or report missing
+    }
   }
 
   /**
