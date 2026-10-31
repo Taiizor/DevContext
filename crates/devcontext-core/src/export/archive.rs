@@ -116,7 +116,16 @@ pub fn extract_zip_safely(zip_path: &Path, dest_dir: &Path) -> Result<PathBuf> {
             ))
         })?;
 
-        let raw_name = entry.name().to_string();
+        let raw_name = entry
+            .name()
+            .map_err(|e| {
+                let _ = fs::remove_dir_all(dest_dir);
+                CoreError::Validation(format!(
+                    "Invalid archive entry filename at index {}: {}",
+                    i, e
+                ))
+            })?
+            .to_string();
         let entry_path = PathBuf::from(&raw_name);
 
         // Security Check 1: Reject entries that are not safe relative paths
@@ -241,7 +250,15 @@ pub fn read_bundle_from_zip(zip_path: &Path) -> Result<ExportBundle> {
         let mut entry = archive.by_index(i).map_err(|e| {
             CoreError::Validation(format!("Corrupted archive entry at index {}: {}", i, e))
         })?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| {
+                CoreError::Validation(format!(
+                    "Invalid archive entry filename at index {}: {}",
+                    i, e
+                ))
+            })?
+            .to_string();
         let normalized = normalize_slashes(&name);
 
         if normalized == "export-v1.json" || normalized.ends_with("/export-v1.json") {
