@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Maintain GitHub Actions workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Maintain Cargo workspace dependencies (crates/devcontext-core, apps/cli)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-dependencies:
+        patterns:
+          - "*"
+
+  # Maintain VS Code extension dependencies (TypeScript / Bun)
+  - package-ecosystem: "npm"
+    directory: "/apps/vscode-extension"
+    schedule:
+      interval: "weekly"
+    groups:
+      extension-dependencies:
+        patterns:
+          - "*"
