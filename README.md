@@ -1,5 +1,12 @@
 # DevContext
 
+[![CI](https://github.com/Taiizor/DevContext/actions/workflows/ci.yml/badge.svg)](https://github.com/Taiizor/DevContext/actions/workflows/ci.yml)
+[![Crates.io devcontext-cli](https://img.shields.io/crates/v/devcontext-cli?label=devcontext-cli&logo=rust)](https://crates.io/crates/devcontext-cli)
+[![Crates.io devcontext-core](https://img.shields.io/crates/v/devcontext-core?label=devcontext-core&logo=rust)](https://crates.io/crates/devcontext-core)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/Taiizor.devcontext-memory?label=VS%20Code&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=Taiizor.devcontext-memory)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+[![Rust](https://img.shields.io/badge/rust-1.80%2B-orange?logo=rust)](https://www.rust-lang.org)
+
 **Project memory for software development.**
 
 DevContext is a local-first, privacy-by-default development memory system. It preserves the human and technical context behind a software project: technical decisions (ADRs), developer notes, milestones, references, selected Git history, and reusable commands.
@@ -10,7 +17,7 @@ Git records *how* files changed. DevContext records the human and technical cont
 
 ## Status
 
-DevContext is at **v0.1.0 (Public MVP Release)** (**Phase 9 — Public MVP Release**).
+DevContext is at **v0.1.1 (Public Release)** (**Phase 9 — Public MVP Release**).
 
 - Architecture decisions: [`docs/decisions/`](docs/decisions/)
 - Product requirements: [`docs/requirements/product-requirements.md`](docs/requirements/product-requirements.md)
@@ -22,7 +29,7 @@ DevContext is at **v0.1.0 (Public MVP Release)** (**Phase 9 — Public MVP Relea
   - [Privacy & Storage Architecture](docs/user/privacy-and-storage.md)
 - Sample Project Dataset: [`examples/sample-project/`](examples/sample-project/)
 - Release Documentation: [`docs/release/`](docs/release/)
-  - [Release Notes v0.1.0](docs/release/release-notes-v0.1.0.md)
+  - [Release Notes](docs/release/release-notes-v0.1.0.md)
   - [Public Announcement Draft](docs/release/public-announcement.md)
   - [Demo Script & Storyboard](docs/release/demo-script.md)
   - [Feedback & Triage Guide](docs/release/feedback-and-triage-guide.md)
@@ -30,6 +37,22 @@ DevContext is at **v0.1.0 (Public MVP Release)** (**Phase 9 — Public MVP Relea
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Roadmap: [`ROADMAP.md`](ROADMAP.md)
 - Live tracker: [`PROGRESS.md`](PROGRESS.md)
+
+---
+
+## Installation
+
+### CLI (Rust / Cargo)
+```bash
+cargo install devcontext-cli
+```
+*Binary installed as `devcontext`. Pre-compiled binaries for Windows, Linux, and macOS are also available on [GitHub Releases](https://github.com/Taiizor/DevContext/releases).*
+
+### VS Code Extension
+Install **DevContext by Taiizor** (`Taiizor.devcontext-memory`) from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=Taiizor.devcontext-memory) or via command line:
+```bash
+code --install-extension Taiizor.devcontext-memory
+```
 
 ---
 
