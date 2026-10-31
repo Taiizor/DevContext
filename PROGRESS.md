@@ -8,11 +8,11 @@
 
 ## Project status
 
--   **Current phase:** Phase 9 --- Public MVP release (Prepared for Publication - Awaiting Approval Gates)
--   **Overall status:** Release artifacts built, verified, and packaged; awaiting publication authorization
+-   **Current phase:** Phase 9 --- Public MVP release (Complete & Verified)
+-   **Overall status:** Complete; crates.io, VS Code Marketplace, and GitHub Release v0.1.1 published with multi-platform binaries
 -   **Last updated:** 2026-10-31
 -   **Current milestone:** Public MVP Release v0.1.1
--   **Current blocker:** None recorded (Publication approval gates pending user authorization)
+-   **Current blocker:** None
 
 ### Status legend
 
@@ -35,7 +35,7 @@
   6\. VS Code extension MVP                   Complete      2026-10-30        Manifest, CoreLocator, CoreClient IPC, TreeViews, QuickPick search, reference commands, ADR 0012, Extension Host + 62 TS tests
   7\. Export/import and data safety           Complete      2026-10-30        Versioned JSON, Markdown hierarchy, ZIP archives, inspection, conflict resolution, pre-operation backups, Zip Slip protections, CLI & VS Code UI
   8\. Quality and release readiness           Complete      2026-10-31        Multi-platform CI matrix, 10k search benchmark (<105ms), startup (<15ms), a11y tree items, release docs & RC checklist
-  9\. Public MVP release                      In progress   ---               Artifacts packaged, docs & samples ready, awaiting publication approval gates
+  9\. Public MVP release                      Complete      2026-10-31        Multi-platform binaries (Win, Linux, macOS ARM/Intel), VSIX, SHA256SUMS, crates.io, marketplace v0.1.1
 
 ------------------------------------------------------------------------
 
