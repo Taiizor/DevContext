@@ -119,6 +119,7 @@ jobs:
       - name: Create Draft Release
         uses: softprops/action-gh-release@v3
         with:
+          name: DevContext ${{ github.ref_name }}
           draft: true
           prerelease: false
           files: |
