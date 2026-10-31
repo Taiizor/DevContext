@@ -21,7 +21,7 @@ updates:
           - "*"
 
   # Maintain VS Code extension dependencies (TypeScript / Bun)
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/apps/vscode-extension"
     schedule:
       interval: "weekly"
