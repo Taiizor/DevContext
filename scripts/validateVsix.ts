@@ -364,31 +364,39 @@ export function runCli(): void {
   const args = process.argv.slice(2);
   let target: SupportedTarget | undefined;
   let targetPath: string | undefined;
+  let dirPath: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--target' && i + 1 < args.length) {
       target = args[++i] as SupportedTarget;
+    } else if (arg === '--dir' && i + 1 < args.length) {
+      dirPath = path.resolve(args[++i]);
     } else if (!arg.startsWith('--')) {
       targetPath = path.resolve(arg);
     }
   }
 
-  if (!targetPath) {
-    // If no path given, check dist-vsix/ directory
-    const defaultDir = path.resolve(process.cwd(), 'dist-vsix');
-    if (fs.existsSync(defaultDir)) {
-      const vsixFiles = fs.readdirSync(defaultDir).filter((f) => f.endsWith('.vsix'));
+  if (targetPath && fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()) {
+    dirPath = targetPath;
+    targetPath = undefined;
+  }
+
+  if (dirPath || !targetPath) {
+    // If no path given or --dir specified, check target directory
+    const searchDir = dirPath || path.resolve(process.cwd(), 'dist-vsix');
+    if (fs.existsSync(searchDir)) {
+      const vsixFiles = fs.readdirSync(searchDir).filter((f) => f.endsWith('.vsix'));
       if (vsixFiles.length === 0) {
-        console.error('No .vsix files found in dist-vsix/. Provide a path to a .vsix file.');
+        console.error(`No .vsix files found in ${searchDir}. Provide a path to a .vsix file.`);
         process.exit(1);
       }
 
       let allPassed = true;
-      console.log(`[ValidateVsix] Validating ${vsixFiles.length} VSIX package(s) in ${defaultDir}...\n`);
+      console.log(`[ValidateVsix] Validating ${vsixFiles.length} VSIX package(s) in ${searchDir}...\n`);
 
       for (const f of vsixFiles) {
-        const fullPath = path.join(defaultDir, f);
+        const fullPath = path.join(searchDir, f);
         const report = validateVsix(fullPath);
         printReport(report);
         if (report.errors.length > 0) allPassed = false;
@@ -402,7 +410,7 @@ export function runCli(): void {
       return;
     }
 
-    console.error('Usage: bun run scripts/validateVsix.ts <path-to-vsix> [--target <target>]');
+    console.error(`Directory not found: ${searchDir}`);
     process.exit(1);
   }
 
