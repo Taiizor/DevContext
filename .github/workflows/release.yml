@@ -178,6 +178,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
@@ -197,12 +205,17 @@ jobs:
           find . -maxdepth 1 -type f ! -name "SHA256SUMS.txt" -exec sha256sum {} + | sed 's|\./||' | sort > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Generate Release Notes from Template & Changelog
+        run: bun run scripts/generateReleaseNotes.ts --tag ${{ github.ref_name }} --output RELEASE_NOTES.md
+
       - name: Create Draft Release
         uses: softprops/action-gh-release@v3
         with:
           name: DevContext ${{ github.ref_name }}
           draft: true
           prerelease: false
+          body_path: RELEASE_NOTES.md
+          append_body: true
           files: |
             release-assets/*
           generate_release_notes: true
