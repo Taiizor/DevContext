@@ -2,7 +2,7 @@
 name: Feature Request
 about: Suggest an idea or enhancement for DevContext
 title: '[FEAT] '
-labels: ['enhancement']
+labels: ['enhancement', 'status:needs-triage']
 assignees: ''
 ---
 

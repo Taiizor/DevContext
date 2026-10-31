@@ -2,7 +2,7 @@
 name: Documentation Issue
 about: Report a typo, broken link, outdated command, or missing explanation in the documentation
 title: '[DOCS] '
-labels: ['documentation']
+labels: ['documentation', 'area:docs']
 assignees: ''
 ---
 

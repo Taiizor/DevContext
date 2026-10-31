@@ -1,0 +1,36 @@
+# DevContext Pull Request Labeler Configuration
+# See: https://github.com/actions/labeler
+
+area:core:
+  - changed-files:
+      - any-glob-to-any-file: 'crates/devcontext-core/**'
+
+area:cli:
+  - changed-files:
+      - any-glob-to-any-file: 'apps/cli/**'
+
+area:vscode:
+  - changed-files:
+      - any-glob-to-any-file: 'apps/vscode-extension/**'
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - 'LICENSE*'
+
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Cargo.lock'
+          - 'Cargo.toml'
+          - 'crates/*/Cargo.toml'
+          - 'apps/*/Cargo.toml'
+          - 'apps/vscode-extension/package.json'
+          - 'apps/vscode-extension/bun.lock'

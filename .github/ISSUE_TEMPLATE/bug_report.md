@@ -2,7 +2,7 @@
 name: Bug Report
 about: Create a report to help us fix a defect in DevContext
 title: '[BUG] '
-labels: ['bug']
+labels: ['bug', 'status:needs-triage']
 assignees: ''
 ---
 
