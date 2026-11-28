@@ -305,10 +305,10 @@
     "validate:vsix": "bun run ../../scripts/validateVsix.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.0",
-    "@types/vscode": "^1.85.0",
+    "@types/bun": "^1.4.5",
+    "@types/vscode": "^1.146.0",
     "@vscode/test-electron": "^3.1.0",
-    "@vscode/vsce": "4.1.0",
+    "@vscode/vsce": "4.1.1",
     "typescript": "^7.0.2"
   },
   "icon": "media/icon.png"
